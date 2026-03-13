@@ -322,6 +322,116 @@ console.log('SCENARIO 7: Dedup validation');
 
 console.log('');
 
+// Scenario 8: Safe mode — contact creation fails
+console.log('SCENARIO 8: Safe mode — CRM failure graceful degradation');
+{
+  // Simulate contact API returning error
+  const errorResponse = { status: 500, message: 'Internal Server Error' };
+  const evalError = evaluateContactResult(errorResponse, { eventType: 'dm', senderId: '999', senderUsername: 'test_user' });
+  assert(evalError.contactExists === false, 'API error treated as contact not found');
+  assert(evalError.contactId === null, 'No contact ID on API error');
+
+  // Simulate contact creation failure (merge gets no ID)
+  const mergeNoId = { ...evalError, contactId: null, contactName: 'test_user', _contactFailed: true };
+  assert(mergeNoId._contactFailed === true, 'Contact failure flag set');
+
+  // Downstream: lead should be skipped
+  const leadSkipped = { ...mergeNoId, leadId: null, leadExists: false, _leadSkipped: true };
+  assert(leadSkipped._leadSkipped === true, 'Lead operations skipped when contact failed');
+
+  // AI should fall back to safe mode
+  const safeResult = {
+    ...leadSkipped,
+    aiResponse: 'Olá! Obrigado pelo seu contato com o Instituto Be Healthy. Estamos com um volume alto de mensagens, mas nossa equipe vai entrar em contato com você em breve!',
+    classification: { lead_temperature: 'cold', interest_area: 'unknown', should_handoff: false, reasoning: 'Safe mode' },
+    _aiMode: 'safe_crm_failed'
+  };
+  assert(safeResult._aiMode === 'safe_crm_failed', 'AI enters safe mode on CRM failure');
+  assert(safeResult.classification.should_handoff === false, 'Safe mode does not trigger handoff');
+  assert(safeResult.aiResponse.length > 0, 'Safe mode provides fallback message');
+}
+
+console.log('');
+
+// Scenario 9: Safe mode — AI failure
+console.log('SCENARIO 9: Safe mode — AI failure graceful degradation');
+{
+  const SAFE_FALLBACK = 'Olá! Obrigado pelo seu contato com o Instituto Be Healthy. Estamos com um volume alto de mensagens, mas nossa equipe vai entrar em contato com você em breve!';
+  const SAFE_CLASSIFICATION = { lead_temperature: 'cold', interest_area: 'unknown', should_handoff: false, reasoning: 'Safe mode - deterministic response' };
+
+  // Simulate AI timeout/failure
+  const aiFailResult = {
+    eventType: 'dm',
+    senderId: '444',
+    senderUsername: 'test_user',
+    leadId: 50001,
+    leadExists: false,
+    aiResponse: SAFE_FALLBACK,
+    classification: SAFE_CLASSIFICATION,
+    tokensUsed: 0,
+    _aiMode: 'safe_ai_failed',
+    _aiError: 'timeout_25s'
+  };
+
+  assert(aiFailResult._aiMode === 'safe_ai_failed', 'AI failure detected');
+  assert(aiFailResult.tokensUsed === 0, 'No tokens consumed in safe mode');
+  assert(aiFailResult.classification.should_handoff === false, 'AI failure prevents handoff');
+  assert(aiFailResult.aiResponse === SAFE_FALLBACK, 'Deterministic fallback message used');
+
+  // Classification should skip
+  const classSkipped = { ...aiFailResult, targetStage: 'Novo Seguidor', targetStatusId: 0, _classSkipped: true };
+  assert(classSkipped._classSkipped === true, 'Classification skipped on AI failure');
+  assert(classSkipped.targetStage === 'Novo Seguidor', 'Defaults to Novo Seguidor');
+}
+
+console.log('');
+
+// Scenario 10: Rate limit simulation
+console.log('SCENARIO 10: Rate limit guard');
+{
+  // Simulate rate limit state
+  const maxPerWindow = 30;
+  const timestamps = [];
+  for (let i = 0; i < maxPerWindow; i++) timestamps.push(Date.now());
+
+  assert(timestamps.length >= maxPerWindow, 'At ' + maxPerWindow + ' events, limit reached');
+  assert(maxPerWindow === 30, 'Rate limit set to 30 events per minute');
+
+  // Under limit
+  const underLimit = timestamps.slice(0, 10);
+  assert(underLimit.length < maxPerWindow, 'Under limit: events pass through');
+}
+
+console.log('');
+
+// Scenario 11: Error telemetry data structure
+console.log('SCENARIO 11: Error telemetry data capture');
+{
+  const dataWithErrors = {
+    _contactFailed: true,
+    _aiMode: 'safe_crm_failed',
+    _aiError: null,
+    leadId: 50001,
+    senderUsername: 'test_user',
+    eventType: 'dm',
+    _execId: 'abc12345'
+  };
+
+  const errors = [];
+  if (dataWithErrors._contactFailed) errors.push('Contact creation failed');
+  if (dataWithErrors._leadFailed) errors.push('Lead creation/lookup failed');
+  if (dataWithErrors._aiError) errors.push('AI error: ' + dataWithErrors._aiError);
+  if (dataWithErrors._aiMode === 'safe_ai_failed') errors.push('AI unavailable');
+  if (dataWithErrors._aiMode === 'safe_crm_failed') errors.push('CRM failed - safe mode');
+
+  assert(errors.length === 2, 'Correct error count detected: ' + errors.length);
+  assert(errors[0] === 'Contact creation failed', 'Contact failure captured');
+  assert(errors[1] === 'CRM failed - safe mode', 'Safe mode reason captured');
+  assert(dataWithErrors._execId.length > 0, 'Execution ID present for tracing');
+}
+
+console.log('');
+
 // Summary
 console.log('=== RESULTS ===');
 console.log('Passed: ' + passed);

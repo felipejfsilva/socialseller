@@ -56,7 +56,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const required=['KOMMO_BASE_URL','KOMMO_PIPELINE_ID','KOMMO_STATUS_NOVO_SEGUIDOR','KOMMO_STATUS_QUALIFICACAO','KOMMO_STATUS_INTERESSE_REAL','KOMMO_STATUS_ANDREA','KOMMO_STATUS_THAIS','OPENAI_API_KEY'];\nconst missing=required.filter(v=>!$env[v]);\nif(missing.length>0) throw new Error('Missing n8n env vars: '+missing.join(', ')+'. Run setup-pipeline.js first.');\nreturn [$input.first()];"
+        "jsCode": "// Validate env vars and initialize execution metadata\nconst required=['KOMMO_BASE_URL','KOMMO_PIPELINE_ID','KOMMO_STATUS_NOVO_SEGUIDOR','KOMMO_STATUS_QUALIFICACAO','KOMMO_STATUS_INTERESSE_REAL','KOMMO_STATUS_ANDREA','KOMMO_STATUS_THAIS','OPENAI_API_KEY'];\nconst missing=required.filter(v=>!$env[v]);\nif(missing.length>0) throw new Error('Missing n8n env vars: '+missing.join(', ')+'. Run setup-pipeline.js first.');\n\n// Pass execution start time for telemetry\nconst item = $input.first();\nitem.json._execStart = Date.now();\nitem.json._execId = Math.random().toString(36).slice(2,10);\nreturn [item];"
       },
       "id": "node-validate-env",
       "name": "Validate Environment",
@@ -144,7 +144,13 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
         }
       },
       "id": "node-check-contact",
@@ -165,7 +171,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const response=$input.first().json;\nconst prevData=$('Parse Instagram Event').first().json;\nlet contactId=null,contactExists=false,contactName=null;\nif(response&&response._embedded&&response._embedded.contacts&&response._embedded.contacts.length>0){\n  const c=response._embedded.contacts[0];\n  contactId=c.id; contactExists=true; contactName=c.name;\n}\nreturn [{json:{...prevData,contactId,contactExists,contactName}}];"
+        "jsCode": "const response=$input.first().json;\nconst prevData=$('Parse Instagram Event').first().json;\nlet contactId=null,contactExists=false,contactName=null;\n\n// Handle Kommo API error responses gracefully\nif(response && response.status && response.status >= 400) {\n  // API returned error — treat as \"not found\" and proceed to create\n  return [{json:{...prevData,contactId:null,contactExists:false,contactName:null,_kommoContactError:response.status}}];\n}\n\nif(response&&response._embedded&&response._embedded.contacts&&response._embedded.contacts.length>0){\n  const c=response._embedded.contacts[0];\n  contactId=c.id; contactExists=true; contactName=c.name;\n}\nreturn [{json:{...prevData,contactId,contactExists,contactName}}];"
       },
       "id": "node-eval-contact",
       "name": "Evaluate Contact Result",
@@ -217,7 +223,13 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
         }
       },
       "id": "node-create-contact",
@@ -233,11 +245,12 @@
           "id": "kommo-auth",
           "name": "Kommo Bearer Auth"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const prevData=$('Contact Exists?').first().json;\nlet contactId=prevData.contactId,contactName=prevData.contactName;\nif(!contactId){\n  const r=$input.first().json;\n  if(r._embedded&&r._embedded.contacts&&r._embedded.contacts.length>0){\n    contactId=r._embedded.contacts[0].id;\n    contactName=r._embedded.contacts[0].name;\n  }\n}\nif(!contactId) throw new Error('Failed to obtain contact ID.');\nreturn [{json:{...prevData,contactId,contactName:contactName||prevData.senderUsername}}];"
+        "jsCode": "const prevData=$('Contact Exists?').first().json;\nlet contactId=prevData.contactId,contactName=prevData.contactName;\nif(!contactId){\n  const r=$input.first().json;\n  // Handle create-contact API failure\n  if(r && r._embedded && r._embedded.contacts && r._embedded.contacts.length>0){\n    contactId=r._embedded.contacts[0].id;\n    contactName=r._embedded.contacts[0].name;\n  }\n}\nif(!contactId){\n  // SAFE MODE: Cannot create contact. Log error but do not crash.\n  // Return with _contactFailed flag so downstream nodes can degrade gracefully\n  return [{json:{...prevData,contactId:null,contactName:prevData.senderUsername,_contactFailed:true}}];\n}\nreturn [{json:{...prevData,contactId,contactName:contactName||prevData.senderUsername}}];"
       },
       "id": "node-merge-contact",
       "name": "Merge Contact Data",
@@ -268,7 +281,13 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
         }
       },
       "id": "node-check-lead",
@@ -289,7 +308,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const prevData=$('Merge Contact Data').first().json;\nconst r=$input.first().json;\nlet leadId=null,leadExists=false;\nif(r&&r._embedded&&r._embedded.leads&&r._embedded.leads.length>0){\n  leadId=r._embedded.leads[0].id; leadExists=true;\n}\nreturn [{json:{...prevData,leadId,leadExists}}];"
+        "jsCode": "const prevData=$('Merge Contact Data').first().json;\n\n// If contact creation failed, skip lead operations\nif(prevData._contactFailed){\n  return [{json:{...prevData,leadId:null,leadExists:false,_leadSkipped:true}}];\n}\n\nconst r=$input.first().json;\nlet leadId=null,leadExists=false;\nif(r&&r._embedded&&r._embedded.leads&&r._embedded.leads.length>0){\n  leadId=r._embedded.leads[0].id; leadExists=true;\n}\nreturn [{json:{...prevData,leadId,leadExists}}];"
       },
       "id": "node-eval-lead",
       "name": "Evaluate Lead Result",
@@ -341,7 +360,13 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
         }
       },
       "id": "node-create-lead",
@@ -357,11 +382,12 @@
           "id": "kommo-auth",
           "name": "Kommo Bearer Auth"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const prevData=$('Lead Exists?').first().json;\nlet leadId=prevData.leadId;\nif(!leadId){\n  const r=$input.first().json;\n  if(r._embedded&&r._embedded.leads&&r._embedded.leads.length>0) leadId=r._embedded.leads[0].id;\n}\nif(!leadId) throw new Error('Failed to obtain lead ID.');\nreturn [{json:{...prevData,leadId,leadExists:prevData.leadExists}}];"
+        "jsCode": "const prevData=$('Lead Exists?').first().json;\n\n// If upstream failed, pass through\nif(prevData._contactFailed || prevData._leadSkipped){\n  return [{json:{...prevData,leadId:null,_leadFailed:true}}];\n}\n\nlet leadId=prevData.leadId;\nif(!leadId){\n  const r=$input.first().json;\n  if(r._embedded&&r._embedded.leads&&r._embedded.leads.length>0) leadId=r._embedded.leads[0].id;\n}\nif(!leadId){\n  return [{json:{...prevData,leadId:null,_leadFailed:true}}];\n}\nreturn [{json:{...prevData,leadId,leadExists:prevData.leadExists}}];"
       },
       "id": "node-merge-lead",
       "name": "Merge Lead Data",
@@ -382,7 +408,13 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
         }
       },
       "id": "node-add-note",
@@ -398,11 +430,12 @@
           "id": "kommo-auth",
           "name": "Kommo Bearer Auth"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const prevData=$('Merge Lead Data').first().json;\nif(prevData.eventType==='follow'){\n  return [{json:{...prevData,aiResponse:'Olá! Bem-vindo(a) ao Instituto Be Healthy! Que bom ter você por aqui. Estamos aqui para cuidar da sua saúde e bem-estar. Se tiver alguma dúvida ou quiser saber mais sobre nossos tratamentos, é só nos chamar!',classification:{lead_temperature:'cold',interest_area:'unknown',should_handoff:false,reasoning:'New follower - deterministic greeting'},tokensUsed:0}}];\n}\nlet conversationHistory='';\nif(prevData.leadExists&&prevData.leadId){\n  try{\n    const nr=await fetch($env.KOMMO_BASE_URL+'/leads/'+prevData.leadId+'/notes?limit=5&order=desc',{headers:{'Authorization':'Bearer '+$env.KOMMO_ACCESS_TOKEN}});\n    if(nr.ok){\n      const nd=await nr.json();\n      if(nd._embedded&&nd._embedded.notes){\n        const notes=nd._embedded.notes.filter(n=>n.params&&n.params.text).map(n=>n.params.text).reverse();\n        if(notes.length>0) conversationHistory='\\n\\nConversation history (last '+notes.length+'):\\n'+notes.join('\\n---\\n');\n      }\n    }\n  }catch(e){}\n}\nconst systemPrompt=`You are the AI assistant for Instituto Be Healthy (@dr.felipefranca).\\nSpeak in Brazilian Portuguese. Be empathetic, professional, welcoming.\\n\\nSALES METHOD - SPIN:\\n- Situation: Ask about current health routine\\n- Problem: Identify health concerns or aesthetic goals\\n- Implication: Help understand impact of not addressing\\n- Need-Payoff: Guide toward Be Healthy solutions\\n\\nCLASSIFICATION (output after every response):\\n- hot: Wants to schedule, mentions procedure, urgency, asks prices\\n- warm: Asks about treatments, actively engaged\\n- cold: Just followed/liked without clear interest\\n- unqualified: Not target audience, spam\\n\\nINTEREST AREAS:\\n- weight_loss: Emagrecimento, dieta, saúde, metabolismo\\n- aesthetics: Estéticos, botox, preenchimento, pele, harmonização\\n- general: General health\\n- unknown: Cannot determine\\n\\nSTRICT RULES - NEVER:\\n- Give medical advice or diagnoses\\n- Prescribe medications\\n- Analyze exams\\n- Promise outcomes\\n- Schedule directly\\n\\nFor medical questions redirect: \"Essa é uma pergunta muito importante! Para te dar a melhor orientação, seria ideal agendar uma consulta com o Dr. Felipe.\"\\n\\nAfter your response output EXACTLY:\\n<classification>\\n{\"lead_temperature\":\"hot\",\"interest_area\":\"weight_loss\",\"should_handoff\":true,\"reasoning\":\"brief\"}\\n</classification>`;\nconst userMsg='['+prevData.eventType+'] '+(prevData.contactName||prevData.senderUsername)+': '+prevData.message+conversationHistory;\nconst oResp=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Authorization':'Bearer '+$env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model:$env.OPENAI_MODEL||'gpt-4o',messages:[{role:'system',content:systemPrompt},{role:'user',content:userMsg}],max_tokens:400,temperature:0.7})});\nif(!oResp.ok){const e=await oResp.text();throw new Error('OpenAI error ('+oResp.status+'): '+e);}\nconst aiData=await oResp.json();\nconst aiText=aiData.choices[0].message.content;\nlet classification={lead_temperature:'cold',interest_area:'unknown',should_handoff:false,reasoning:'Not extracted'};\nconst cm=aiText.match(/<classification>\\s*(\\{[\\s\\S]*?\\})\\s*<\\/classification>/);\nif(cm){try{const p=JSON.parse(cm[1]);const vt=['hot','warm','cold','unqualified'];const va=['weight_loss','aesthetics','general','unknown'];classification={lead_temperature:vt.includes(p.lead_temperature)?p.lead_temperature:'cold',interest_area:va.includes(p.interest_area)?p.interest_area:'unknown',should_handoff:p.should_handoff===true,reasoning:String(p.reasoning||'')};}catch(e){}}\nconst cleanResp=aiText.replace(/<classification>[\\s\\S]*?<\\/classification>/,'').trim();\nreturn [{json:{...prevData,aiResponse:cleanResp,classification,tokensUsed:aiData.usage?aiData.usage.total_tokens:0}}];"
+        "jsCode": "const prevData=$('Merge Lead Data').first().json;\n\n// SAFE MODE: deterministic responses when CRM operations failed\nconst SAFE_FALLBACK = 'Olá! Obrigado pelo seu contato com o Instituto Be Healthy. Estamos com um volume alto de mensagens, mas nossa equipe vai entrar em contato com você em breve!';\nconst SAFE_CLASSIFICATION = {lead_temperature:'cold',interest_area:'unknown',should_handoff:false,reasoning:'Safe mode - deterministic response'};\n\n// Follow events: always deterministic (no AI cost)\nif(prevData.eventType==='follow'){\n  return [{json:{...prevData,aiResponse:'Olá! Bem-vindo(a) ao Instituto Be Healthy! Que bom ter você por aqui. Estamos aqui para cuidar da sua saúde e bem-estar. Se tiver alguma dúvida ou quiser saber mais sobre nossos tratamentos, é só nos chamar!',classification:{lead_temperature:'cold',interest_area:'unknown',should_handoff:false,reasoning:'New follower - deterministic greeting'},tokensUsed:0,_aiMode:'deterministic'}}];\n}\n\n// If CRM failed upstream, use safe mode but still try AI\nif(prevData._leadFailed || prevData._contactFailed){\n  return [{json:{...prevData,aiResponse:SAFE_FALLBACK,classification:SAFE_CLASSIFICATION,tokensUsed:0,_aiMode:'safe_crm_failed'}}];\n}\n\n// Load conversation history (last 5 CRM notes, capped)\nlet conversationHistory='';\nif(prevData.leadExists&&prevData.leadId){\n  try{\n    const nr=await fetch($env.KOMMO_BASE_URL+'/leads/'+prevData.leadId+'/notes?limit=5&order=desc',{headers:{'Authorization':'Bearer '+$env.KOMMO_ACCESS_TOKEN},signal:AbortSignal.timeout(8000)});\n    if(nr.ok){\n      const nd=await nr.json();\n      if(nd._embedded&&nd._embedded.notes){\n        const notes=nd._embedded.notes.filter(n=>n.params&&n.params.text).map(n=>n.params.text).reverse();\n        if(notes.length>0) conversationHistory='\\n\\nConversation history (last '+notes.length+'):\\n'+notes.join('\\n---\\n');\n      }\n    }\n  }catch(e){/* proceed without history */}\n}\n\nconst systemPrompt=`You are the AI assistant for Instituto Be Healthy (@dr.felipefranca).\nSpeak in Brazilian Portuguese. Be empathetic, professional, welcoming.\n\nSALES METHOD - SPIN:\n- Situation: Ask about current health routine\n- Problem: Identify health concerns or aesthetic goals\n- Implication: Help understand impact of not addressing\n- Need-Payoff: Guide toward Be Healthy solutions\n\nCLASSIFICATION (output after every response):\n- hot: Wants to schedule, mentions procedure, urgency, asks prices\n- warm: Asks about treatments, actively engaged\n- cold: Just followed/liked without clear interest\n- unqualified: Not target audience, spam\n\nINTEREST AREAS:\n- weight_loss: Emagrecimento, dieta, saúde, metabolismo\n- aesthetics: Estéticos, botox, preenchimento, pele, harmonização\n- general: General health\n- unknown: Cannot determine\n\nSTRICT RULES - NEVER:\n- Give medical advice or diagnoses\n- Prescribe medications\n- Analyze exams\n- Promise outcomes\n- Schedule directly\n\nFor medical questions redirect: \"Essa é uma pergunta muito importante! Para te dar a melhor orientação, seria ideal agendar uma consulta com o Dr. Felipe.\"\n\nAfter your response output EXACTLY:\n<classification>\n{\"lead_temperature\":\"hot\",\"interest_area\":\"weight_loss\",\"should_handoff\":true,\"reasoning\":\"brief\"}\n</classification>`;\n\nconst userMsg='['+prevData.eventType+'] '+(prevData.contactName||prevData.senderUsername)+': '+prevData.message+conversationHistory;\n\n// OpenAI call with retry (2 attempts) and timeout (25s)\nlet aiText = null;\nlet tokensUsed = 0;\nlet lastError = null;\n\nfor(let attempt=0; attempt<2; attempt++){\n  try{\n    const oResp=await fetch('https://api.openai.com/v1/chat/completions',{\n      method:'POST',\n      headers:{'Authorization':'Bearer '+$env.OPENAI_API_KEY,'Content-Type':'application/json'},\n      body:JSON.stringify({model:$env.OPENAI_MODEL||'gpt-4o',messages:[{role:'system',content:systemPrompt},{role:'user',content:userMsg}],max_tokens:400,temperature:0.7}),\n      signal:AbortSignal.timeout(25000)\n    });\n\n    // Rate limit: if 429, wait and retry\n    if(oResp.status===429 && attempt===0){\n      const retryAfter = oResp.headers.get('retry-after');\n      const waitMs = retryAfter ? Number(retryAfter)*1000 : 3000;\n      await new Promise(r=>setTimeout(r,Math.min(waitMs,5000)));\n      lastError='rate_limited_429';\n      continue;\n    }\n\n    if(!oResp.ok){\n      lastError='openai_'+oResp.status;\n      const e=await oResp.text();\n      if(attempt===0){await new Promise(r=>setTimeout(r,2000));continue;}\n      break;\n    }\n\n    const aiData=await oResp.json();\n    aiText=aiData.choices[0].message.content;\n    tokensUsed=aiData.usage?aiData.usage.total_tokens:0;\n    break;\n  }catch(e){\n    lastError=e.name==='TimeoutError'?'timeout_25s':e.message;\n    if(attempt===0){await new Promise(r=>setTimeout(r,2000));continue;}\n  }\n}\n\n// SAFE MODE: If AI completely failed after retries, use deterministic fallback\nif(!aiText){\n  return [{json:{...prevData,aiResponse:SAFE_FALLBACK,classification:SAFE_CLASSIFICATION,tokensUsed:0,_aiMode:'safe_ai_failed',_aiError:lastError}}];\n}\n\n// Parse classification with validation\nlet classification={lead_temperature:'cold',interest_area:'unknown',should_handoff:false,reasoning:'Not extracted'};\nconst cm=aiText.match(/<classification>\\s*(\\\\{[\\s\\S]*?\\\\})\\s*<\\/classification>/);\nif(cm){try{const p=JSON.parse(cm[1]);const vt=['hot','warm','cold','unqualified'];const va=['weight_loss','aesthetics','general','unknown'];classification={lead_temperature:vt.includes(p.lead_temperature)?p.lead_temperature:'cold',interest_area:va.includes(p.interest_area)?p.interest_area:'unknown',should_handoff:p.should_handoff===true,reasoning:String(p.reasoning||'')};}catch(e){}}\nconst cleanResp=aiText.replace(/<classification>[\\s\\S]*?<\\/classification>/,'').trim();\nreturn [{json:{...prevData,aiResponse:cleanResp,classification,tokensUsed,_aiMode:'live'}}];"
       },
       "id": "node-ai-agent",
       "name": "AI Conversation Agent",
@@ -415,7 +448,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const data=$input.first().json;\nconst {classification}=data;\nconst map={cold:{n:'Novo Seguidor',e:'KOMMO_STATUS_NOVO_SEGUIDOR'},warm:{n:'Qualificação',e:'KOMMO_STATUS_QUALIFICACAO'},hot:{n:'Interesse Real',e:'KOMMO_STATUS_INTERESSE_REAL'},unqualified:{n:'Novo Seguidor',e:'KOMMO_STATUS_NOVO_SEGUIDOR'}};\nconst stage=map[classification.lead_temperature]||map.cold;\nconst statusId=$env[stage.e];\nif(!statusId) throw new Error('Env var '+stage.e+' not set.');\nreturn [{json:{...data,targetStage:stage.n,targetStatusId:Number(statusId)}}];"
+        "jsCode": "const data=$input.first().json;\n\n// If AI was in safe mode or CRM failed, skip classification\nif(data._aiMode==='safe_crm_failed'||data._aiMode==='safe_ai_failed'||data._leadFailed){\n  return [{json:{...data,targetStage:'Novo Seguidor',targetStatusId:Number($env.KOMMO_STATUS_NOVO_SEGUIDOR)||0,_classSkipped:true}}];\n}\n\nconst {classification}=data;\nconst map={cold:{n:'Novo Seguidor',e:'KOMMO_STATUS_NOVO_SEGUIDOR'},warm:{n:'Qualificação',e:'KOMMO_STATUS_QUALIFICACAO'},hot:{n:'Interesse Real',e:'KOMMO_STATUS_INTERESSE_REAL'},unqualified:{n:'Novo Seguidor',e:'KOMMO_STATUS_NOVO_SEGUIDOR'}};\nconst stage=map[classification.lead_temperature]||map.cold;\nconst statusId=$env[stage.e];\nif(!statusId){\n  // Env var missing — degrade to cold, don't crash\n  return [{json:{...data,targetStage:'Novo Seguidor',targetStatusId:Number($env.KOMMO_STATUS_NOVO_SEGUIDOR)||0,_classError:'Missing env '+stage.e}}];\n}\nreturn [{json:{...data,targetStage:stage.n,targetStatusId:Number(statusId)}}];"
       },
       "id": "node-classify",
       "name": "Lead Classification",
@@ -436,7 +469,13 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
         }
       },
       "id": "node-update-stage",
@@ -452,7 +491,8 @@
           "id": "kommo-auth",
           "name": "Kommo Bearer Auth"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -487,7 +527,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const data=$('Lead Classification').first().json;\nconst {classification,leadId}=data;\nconst ops={weight_loss:{name:'Andrea',userId:14813416,envVar:'KOMMO_STATUS_ANDREA',area:'Emagrecimento e saúde'},aesthetics:{name:'Thais',userId:14832028,envVar:'KOMMO_STATUS_THAIS',area:'Procedimentos estéticos'}};\nconst op=ops[classification.interest_area]||ops.weight_loss;\nconst statusId=$env[op.envVar];\nif(!statusId) throw new Error('Env var '+op.envVar+' not set.');\nreturn [{json:{leadId,operatorName:op.name,operatorArea:op.area,responsibleUserId:op.userId,targetStatusId:Number(statusId),handoffMessage:'Vou te conectar com '+op.name+', que é especialista em '+op.area+' e vai poder te ajudar melhor! Ela vai entrar em contato em breve.',aiResponse:data.aiResponse,classification:data.classification,senderId:data.senderId,eventType:data.eventType}}];"
+        "jsCode": "const data=$('Lead Classification').first().json;\nconst {classification,leadId}=data;\n\n// If classification was skipped, don't handoff\nif(data._classSkipped||data._leadFailed){\n  return [{json:{leadId:leadId||0,operatorName:'none',operatorArea:'',responsibleUserId:0,targetStatusId:0,handoffMessage:'',aiResponse:data.aiResponse||'',classification:data.classification||{},senderId:data.senderId,eventType:data.eventType,_handoffSkipped:true}}];\n}\n\nconst ops={weight_loss:{name:'Andrea',userId:14813416,envVar:'KOMMO_STATUS_ANDREA',area:'Emagrecimento e saúde'},aesthetics:{name:'Thais',userId:14832028,envVar:'KOMMO_STATUS_THAIS',area:'Procedimentos estéticos'}};\nconst op=ops[classification.interest_area]||ops.weight_loss;\nconst statusId=$env[op.envVar];\nif(!statusId){\n  return [{json:{...data,leadId,operatorName:op.name,operatorArea:op.area,responsibleUserId:op.userId,targetStatusId:0,handoffMessage:'Vou te conectar com '+op.name+', que vai poder te ajudar melhor! Ela vai entrar em contato em breve.',aiResponse:data.aiResponse,classification:data.classification,senderId:data.senderId,eventType:data.eventType,_handoffEnvError:'Missing '+op.envVar}}];\n}\nreturn [{json:{leadId,operatorName:op.name,operatorArea:op.area,responsibleUserId:op.userId,targetStatusId:Number(statusId),handoffMessage:'Vou te conectar com '+op.name+', que é especialista em '+op.area+' e vai poder te ajudar melhor! Ela vai entrar em contato em breve.',aiResponse:data.aiResponse,classification:data.classification,senderId:data.senderId,eventType:data.eventType}}];"
       },
       "id": "node-resolve-handoff",
       "name": "Resolve Handoff Operator",
@@ -508,7 +548,13 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
         }
       },
       "id": "node-assign-lead",
@@ -524,7 +570,8 @@
           "id": "kommo-auth",
           "name": "Kommo Bearer Auth"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -536,7 +583,13 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 10000
+          "timeout": 15000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
         }
       },
       "id": "node-handoff-note",
@@ -552,7 +605,8 @@
           "id": "kommo-auth",
           "name": "Kommo Bearer Auth"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -570,7 +624,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({status:'handoff',operator:$json.operatorName,area:$json.operatorArea,classification:$json.classification,igReplyStatus:$json.igReplyStatus}) }}",
+        "responseBody": "={{ JSON.stringify({status:'handoff',operator:$json.operatorName,area:$json.operatorArea,classification:$json.classification,igReplyStatus:$json.igReplyStatus,errors:$json._errors||[]}) }}",
         "options": {
           "responseCode": 200
         }
@@ -600,7 +654,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({status:'ok',classification:$json.classification,igReplyStatus:$json.igReplyStatus}) }}",
+        "responseBody": "={{ JSON.stringify({status:'ok',classification:$json.classification,igReplyStatus:$json.igReplyStatus,aiMode:$json._aiMode||'live',errors:$json._errors||[]}) }}",
         "options": {
           "responseCode": 200
         }
@@ -612,6 +666,32 @@
       "position": [
         5250,
         450
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error Telemetry: Log any execution errors as CRM notes\n// This node runs at the end of the error path to capture failures\n\nconst data = $input.first().json;\nconst errors = [];\n\nif(data._contactFailed) errors.push('Contact creation failed');\nif(data._leadFailed) errors.push('Lead creation/lookup failed');\nif(data._aiError) errors.push('AI error: '+data._aiError);\nif(data._aiMode==='safe_ai_failed') errors.push('AI unavailable - safe mode used');\nif(data._aiMode==='safe_crm_failed') errors.push('CRM failed - safe mode used');\nif(data._classError) errors.push('Classification env error: '+data._classError);\nif(data._handoffEnvError) errors.push('Handoff env error: '+data._handoffEnvError);\nif(data._kommoContactError) errors.push('Kommo contact API error: '+data._kommoContactError);\n\n// If there are errors and we have a lead ID, log to CRM\nif(errors.length>0 && data.leadId && $env.KOMMO_BASE_URL && $env.KOMMO_ACCESS_TOKEN){\n  const noteText = 'SYSTEM ERROR LOG\\n'+\n    'Timestamp: '+new Date().toISOString()+'\\n'+\n    'Lead ID: '+data.leadId+'\\n'+\n    'Event: '+(data.eventType||'unknown')+'\\n'+\n    'Sender: '+(data.senderUsername||'unknown')+'\\n'+\n    'Errors:\\n- '+errors.join('\\n- ')+'\\n'+\n    'AI Mode: '+(data._aiMode||'unknown')+'\\n'+\n    'Exec ID: '+(data._execId||'none');\n\n  try{\n    await fetch($env.KOMMO_BASE_URL+'/leads/'+data.leadId+'/notes',{\n      method:'POST',\n      headers:{'Authorization':'Bearer '+$env.KOMMO_ACCESS_TOKEN,'Content-Type':'application/json'},\n      body:JSON.stringify([{note_type:'common',params:{text:noteText}}]),\n      signal:AbortSignal.timeout(5000)\n    });\n  }catch(e){/* best effort */}\n}\n\n// Always pass data through\nreturn [{json:{...data,_errors:errors,_errorCount:errors.length}}];"
+      },
+      "id": "node-error-telemetry",
+      "name": "Error Telemetry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4150,
+        550
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rate limit guard: prevent processing bursts\n// Uses n8n static data to track recent executions\nconst now = Date.now();\nconst windowMs = 60000; // 1 minute window\nconst maxPerWindow = 30; // max 30 events per minute\n\n// Use workflow static data for rate tracking\nconst staticData = $getWorkflowStaticData('global');\nif(!staticData.eventTimestamps) staticData.eventTimestamps = [];\n\n// Clean old entries\nstaticData.eventTimestamps = staticData.eventTimestamps.filter(t => now - t < windowMs);\n\nif(staticData.eventTimestamps.length >= maxPerWindow){\n  return [{json:{skip:true,reason:'Rate limit exceeded ('+maxPerWindow+'/min). Event dropped.'}}];\n}\n\nstaticData.eventTimestamps.push(now);\nreturn [$input.first()];"
+      },
+      "id": "node-rate-limit",
+      "name": "Rate Limit Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        625,
+        300
       ]
     }
   ],
@@ -642,7 +722,7 @@
       "main": [
         [
           {
-            "node": "Parse Instagram Event",
+            "node": "Rate Limit Guard",
             "type": "main",
             "index": 0
           }
@@ -909,6 +989,28 @@
       ]
     },
     "Send IG Reply (Normal)": {
+      "main": [
+        [
+          {
+            "node": "Error Telemetry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Guard": {
+      "main": [
+        [
+          {
+            "node": "Parse Instagram Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Telemetry": {
       "main": [
         [
           {
