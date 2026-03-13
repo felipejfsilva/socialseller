@@ -52,8 +52,8 @@ async function apiRequest(method, endpoint, body) {
     throw new Error(`API ${method} ${endpoint} failed (${response.status}): ${text}`);
   }
 
-  const contentType = response.headers.get('content-type');
-  if (contentType && contentType.includes('application/json')) {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('json')) {
     return response.json();
   }
   return null;
