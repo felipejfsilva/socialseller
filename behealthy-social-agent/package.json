@@ -8,7 +8,8 @@
     "import:workflow": "n8n import:workflow --input=workflows/social-instagram-agent.json",
     "validate": "node tests/validate-workflow.js && node tests/e2e-validation.js",
     "test:workflow": "node tests/validate-workflow.js",
-    "test:e2e": "node tests/e2e-validation.js"
+    "test:e2e": "node tests/e2e-validation.js",
+    "test:pipeline": "node scripts/test-pipeline.js"
   },
   "dependencies": {
     "n8n": "^1.123.25"
