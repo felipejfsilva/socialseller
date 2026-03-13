@@ -1,0 +1,63 @@
+{
+  "pipeline": {
+    "name": "SOCIAL SELLING INSTAGRAM",
+    "pipeline_id": null,
+    "statuses": [
+      {
+        "name": "Novo Seguidor",
+        "status_id": null,
+        "sort": 1,
+        "color": "#fffeb2"
+      },
+      {
+        "name": "Interação Inicial",
+        "status_id": null,
+        "sort": 2,
+        "color": "#d6eaff"
+      },
+      {
+        "name": "Qualificação",
+        "status_id": null,
+        "sort": 3,
+        "color": "#c1e0ff"
+      },
+      {
+        "name": "Interesse Real",
+        "status_id": null,
+        "sort": 4,
+        "color": "#ebffb1"
+      },
+      {
+        "name": "Encaminhado Andrea",
+        "status_id": null,
+        "sort": 5,
+        "color": "#ffdc7f"
+      },
+      {
+        "name": "Encaminhado Thais",
+        "status_id": null,
+        "sort": 6,
+        "color": "#ffc8c8"
+      },
+      {
+        "name": "Consulta Agendada",
+        "status_id": null,
+        "sort": 7,
+        "color": "#b1ffb1"
+      }
+    ]
+  },
+  "responsible_users": {
+    "andrea": {
+      "name": "Andrea",
+      "user_id": 14813416,
+      "area": "weight_loss"
+    },
+    "thais": {
+      "name": "Thais",
+      "user_id": 14832028,
+      "area": "aesthetic_procedures"
+    }
+  },
+  "_note": "Run 'npm run setup' to populate pipeline_id and status_id values from Kommo API"
+}
