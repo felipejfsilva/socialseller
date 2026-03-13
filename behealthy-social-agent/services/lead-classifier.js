@@ -3,21 +3,25 @@
  *
  * Maps AI classification results to Kommo pipeline stages
  * and determines handoff routing.
+ *
+ * ARCHITECTURE NOTE:
+ * This module is the Node.js reference implementation.
+ * The n8n workflow duplicates this logic inline because n8n Code nodes
+ * cannot require() external files. Both use config/constants.js as
+ * the canonical source of truth for operator IDs and stage mappings.
+ *
+ * If you change classification logic here, also update:
+ * - workflows/social-instagram-agent.json (Lead Classification node)
+ * - workflows/social-instagram-agent.json (Resolve Handoff Operator node)
  */
 
 const { updateLeadStage, assignLead } = require('./kommo-leads');
 const { addHandoffNote } = require('./kommo-notes');
+const { OPERATORS, TEMPERATURE_TO_STAGE, INTEREST_TO_OPERATOR } = require('../config/constants');
 
 const RESPONSIBLE_USERS = {
-  weight_loss: { name: 'Andrea', userId: 14813416, stage: 'Encaminhado Andrea' },
-  aesthetics: { name: 'Thais', userId: 14832028, stage: 'Encaminhado Thais' }
-};
-
-const TEMPERATURE_TO_STAGE = {
-  cold: 'Novo Seguidor',
-  warm: 'Qualificação',
-  hot: 'Interesse Real',
-  unqualified: 'Novo Seguidor'
+  weight_loss: { name: OPERATORS.andrea.name, userId: OPERATORS.andrea.userId, stage: OPERATORS.andrea.stage },
+  aesthetics: { name: OPERATORS.thais.name, userId: OPERATORS.thais.userId, stage: OPERATORS.thais.stage }
 };
 
 /**

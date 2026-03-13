@@ -1,0 +1,21 @@
+{
+  "description": "Instagram webhook payload: direct message",
+  "object": "instagram",
+  "entry": [
+    {
+      "id": "17841400123456789",
+      "time": 1710000000,
+      "messaging": [
+        {
+          "sender": { "id": "44411122233" },
+          "recipient": { "id": "17841400123456789" },
+          "timestamp": 1710000000000,
+          "message": {
+            "mid": "m_ABcDeFgHiJkLmNoPqRsT",
+            "text": "Olá! Gostaria de saber mais sobre os tratamentos de emagrecimento. Quanto custa uma consulta?"
+          }
+        }
+      ]
+    }
+  ]
+}

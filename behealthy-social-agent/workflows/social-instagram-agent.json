@@ -7,13 +7,17 @@
         "path": "instagram-webhook",
         "options": {
           "rawBody": true
-        }
+        },
+        "responseMode": "responseNode"
       },
       "id": "node-trigger",
       "name": "Instagram Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 300],
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
       "webhookId": "instagram-webhook"
     },
     {
@@ -26,47 +30,103 @@
       "id": "node-verify",
       "name": "Webhook Verification",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 100],
+      "typeVersion": 2,
+      "position": [
+        250,
+        100
+      ],
       "webhookId": "instagram-verify"
     },
     {
       "parameters": {
         "respondWith": "text",
-        "responseBody": "={{ $json.query['hub.challenge'] }}"
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "node-verify-response",
       "name": "Verify Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [500, 100]
+      "position": [
+        500,
+        100
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Parse Instagram webhook payload\nconst body = $input.first().json.body;\nconst entry = body.entry && body.entry[0];\n\nif (!entry) {\n  return [{ json: { skip: true, reason: 'No entry in payload' } }];\n}\n\nlet eventType = 'unknown';\nlet senderId = null;\nlet senderUsername = null;\nlet message = null;\nlet timestamp = new Date().toISOString();\n\n// Check for messaging (DM)\nif (entry.messaging && entry.messaging.length > 0) {\n  const msg = entry.messaging[0];\n  senderId = msg.sender && msg.sender.id;\n  eventType = 'dm';\n  message = msg.message && msg.message.text;\n  timestamp = msg.timestamp ? new Date(msg.timestamp).toISOString() : timestamp;\n}\n\n// Check for changes (comments, follows)\nif (entry.changes && entry.changes.length > 0) {\n  const change = entry.changes[0];\n  if (change.field === 'comments') {\n    eventType = 'comment';\n    senderId = change.value && change.value.from && change.value.from.id;\n    senderUsername = change.value && change.value.from && change.value.from.username;\n    message = change.value && change.value.text;\n  } else if (change.field === 'followers') {\n    eventType = 'follow';\n    senderId = change.value && change.value.id;\n    senderUsername = change.value && change.value.username;\n  }\n}\n\nreturn [{\n  json: {\n    eventType,\n    senderId,\n    senderUsername: senderUsername || `ig_user_${senderId}`,\n    message: message || '',\n    timestamp,\n    skip: false\n  }\n}];"
+        "jsCode": "const required=['KOMMO_BASE_URL','KOMMO_PIPELINE_ID','KOMMO_STATUS_NOVO_SEGUIDOR','KOMMO_STATUS_QUALIFICACAO','KOMMO_STATUS_INTERESSE_REAL','KOMMO_STATUS_ANDREA','KOMMO_STATUS_THAIS','OPENAI_API_KEY'];\nconst missing=required.filter(v=>!$env[v]);\nif(missing.length>0) throw new Error('Missing n8n env vars: '+missing.join(', ')+'. Run setup-pipeline.js first.');\nreturn [$input.first()];"
+      },
+      "id": "node-validate-env",
+      "name": "Validate Environment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body;\nif(!body||!body.entry||!body.entry[0]) return [{json:{skip:true,reason:'No entry in payload'}}];\nconst entry=body.entry[0];\nlet eventType='unknown',senderId=null,senderUsername=null,message='',timestamp=new Date().toISOString();\nif(entry.messaging&&entry.messaging.length>0){\n  const msg=entry.messaging[0];\n  senderId=msg.sender?String(msg.sender.id):null;\n  eventType='dm';\n  message=(msg.message&&msg.message.text)||'';\n  if(msg.timestamp) timestamp=new Date(Number(msg.timestamp)).toISOString();\n} else if(entry.changes&&entry.changes.length>0){\n  const change=entry.changes[0];\n  if(change.field==='comments'){\n    eventType='comment';\n    senderId=change.value&&change.value.from?String(change.value.from.id):null;\n    senderUsername=change.value&&change.value.from?change.value.from.username:null;\n    message=(change.value&&change.value.text)||'';\n  } else if(change.field==='followers'||change.field==='follow'){\n    eventType='follow';\n    senderId=change.value?String(change.value.id||change.value.user_id):null;\n    senderUsername=change.value?change.value.username:null;\n  }\n}\nif(!senderId) return [{json:{skip:true,reason:'No sender ID'}}];\nreturn [{json:{eventType,senderId,senderUsername:senderUsername||'ig_user_'+senderId,message,timestamp,skip:false}}];"
       },
       "id": "node-parse-event",
       "name": "Parse Instagram Event",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [500, 300]
+      "position": [
+        750,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
             {
-              "value1": "={{ $json.skip }}",
-              "value2": true
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
-          ]
+          ],
+          "combinator": "and"
         }
       },
       "id": "node-filter-valid",
       "name": "Filter Valid Events",
       "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({status:'skipped',reason:$json.reason||'invalid'}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-skip",
+      "name": "Respond Skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [750, 300]
+      "position": [
+        1250,
+        500
+      ]
     },
     {
       "parameters": {
@@ -91,60 +151,83 @@
       "name": "Check Contact in Kommo",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1000, 250],
+      "position": [
+        1250,
+        250
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "kommo-auth",
           "name": "Kommo Bearer Auth"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.first().json;\nconst prevData = $('Parse Instagram Event').first().json;\n\nlet contactId = null;\nlet contactExists = false;\n\nif (response._embedded && response._embedded.contacts && response._embedded.contacts.length > 0) {\n  contactId = response._embedded.contacts[0].id;\n  contactExists = true;\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    contactId,\n    contactExists\n  }\n}];"
+        "jsCode": "const response=$input.first().json;\nconst prevData=$('Parse Instagram Event').first().json;\nlet contactId=null,contactExists=false,contactName=null;\nif(response&&response._embedded&&response._embedded.contacts&&response._embedded.contacts.length>0){\n  const c=response._embedded.contacts[0];\n  contactId=c.id; contactExists=true; contactName=c.name;\n}\nreturn [{json:{...prevData,contactId,contactExists,contactName}}];"
       },
       "id": "node-eval-contact",
       "name": "Evaluate Contact Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1250, 250]
+      "position": [
+        1500,
+        250
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
             {
-              "value1": "={{ $json.contactExists }}",
-              "value2": true
+              "id": "contact-check",
+              "leftValue": "={{ $json.contactExists }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
-          ]
+          ],
+          "combinator": "and"
         }
       },
       "id": "node-contact-exists",
       "name": "Contact Exists?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [1500, 250]
+      "typeVersion": 2,
+      "position": [
+        1750,
+        250
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ $env.KOMMO_BASE_URL }}/contacts",
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": []
-        },
         "specifyBody": "json",
-        "jsonBody": "=[{\"name\": \"{{ $json.senderUsername }}\", \"custom_fields_values\": [{\"field_code\": \"IM\", \"values\": [{\"value\": \"{{ $json.senderUsername }}\", \"enum_code\": \"OTHER\"}]}], \"_embedded\": {\"tags\": [{\"name\": \"instagram\"}, {\"name\": \"social-selling\"}]}}]",
+        "jsonBody": "={{ JSON.stringify([{name:$json.senderUsername,custom_fields_values:[{field_code:'IM',values:[{value:$json.senderUsername,enum_code:'OTHER'}]}],_embedded:{tags:[{name:'instagram'},{name:'social-selling'}]}}]) }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "node-create-contact",
       "name": "Create Contact",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1750, 400],
+      "position": [
+        2000,
+        400
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "kommo-auth",
@@ -154,13 +237,99 @@
     },
     {
       "parameters": {
-        "jsCode": "const prevData = $('Contact Exists?').first().json;\nlet contactId = prevData.contactId;\n\n// If contact was just created, extract its ID\nif (!contactId) {\n  const createResult = $input.first().json;\n  if (createResult._embedded && createResult._embedded.contacts) {\n    contactId = createResult._embedded.contacts[0].id;\n  }\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    contactId\n  }\n}];"
+        "jsCode": "const prevData=$('Contact Exists?').first().json;\nlet contactId=prevData.contactId,contactName=prevData.contactName;\nif(!contactId){\n  const r=$input.first().json;\n  if(r._embedded&&r._embedded.contacts&&r._embedded.contacts.length>0){\n    contactId=r._embedded.contacts[0].id;\n    contactName=r._embedded.contacts[0].name;\n  }\n}\nif(!contactId) throw new Error('Failed to obtain contact ID.');\nreturn [{json:{...prevData,contactId,contactName:contactName||prevData.senderUsername}}];"
       },
       "id": "node-merge-contact",
       "name": "Merge Contact Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2000, 300]
+      "position": [
+        2250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.KOMMO_BASE_URL }}/leads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter[contacts]",
+              "value": "={{ $json.contactId }}"
+            },
+            {
+              "name": "filter[pipeline_id]",
+              "value": "={{ $env.KOMMO_PIPELINE_ID }}"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "node-check-lead",
+      "name": "Check Existing Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2500,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kommo-auth",
+          "name": "Kommo Bearer Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData=$('Merge Contact Data').first().json;\nconst r=$input.first().json;\nlet leadId=null,leadExists=false;\nif(r&&r._embedded&&r._embedded.leads&&r._embedded.leads.length>0){\n  leadId=r._embedded.leads[0].id; leadExists=true;\n}\nreturn [{json:{...prevData,leadId,leadExists}}];"
+      },
+      "id": "node-eval-lead",
+      "name": "Evaluate Lead Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "lead-check",
+              "leftValue": "={{ $json.leadExists }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-lead-exists",
+      "name": "Lead Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        300
+      ]
     },
     {
       "parameters": {
@@ -168,16 +337,21 @@
         "url": "={{ $env.KOMMO_BASE_URL }}/leads",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "=[{\"name\": \"Instagram - {{ $json.senderUsername }}\", \"pipeline_id\": {{ $env.KOMMO_PIPELINE_ID }}, \"status_id\": {{ $env.KOMMO_STATUS_NOVO_SEGUIDOR }}, \"_embedded\": {\"contacts\": [{\"id\": {{ $json.contactId }}}], \"tags\": [{\"name\": \"instagram\"}, {\"name\": \"ai-agent\"}]}}]",
+        "jsonBody": "={{ JSON.stringify([{name:'Instagram - '+$('Evaluate Lead Result').first().json.senderUsername,pipeline_id:Number($env.KOMMO_PIPELINE_ID),status_id:Number($env.KOMMO_STATUS_NOVO_SEGUIDOR),_embedded:{contacts:[{id:$('Evaluate Lead Result').first().json.contactId}],tags:[{name:'instagram'},{name:'ai-agent'}]}}]) }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "node-create-lead",
       "name": "Create Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2250, 300],
+      "position": [
+        3250,
+        450
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "kommo-auth",
@@ -187,13 +361,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const prevData = $('Merge Contact Data').first().json;\nconst leadResult = $input.first().json;\n\nlet leadId = null;\nif (leadResult._embedded && leadResult._embedded.leads) {\n  leadId = leadResult._embedded.leads[0].id;\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    leadId\n  }\n}];"
+        "jsCode": "const prevData=$('Lead Exists?').first().json;\nlet leadId=prevData.leadId;\nif(!leadId){\n  const r=$input.first().json;\n  if(r._embedded&&r._embedded.leads&&r._embedded.leads.length>0) leadId=r._embedded.leads[0].id;\n}\nif(!leadId) throw new Error('Failed to obtain lead ID.');\nreturn [{json:{...prevData,leadId,leadExists:prevData.leadExists}}];"
       },
-      "id": "node-extract-lead",
-      "name": "Extract Lead ID",
+      "id": "node-merge-lead",
+      "name": "Merge Lead Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2500, 300]
+      "position": [
+        3500,
+        300
+      ]
     },
     {
       "parameters": {
@@ -201,16 +378,21 @@
         "url": "={{ $env.KOMMO_BASE_URL }}/leads/{{ $json.leadId }}/notes",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "=[{\"note_type\": \"common\", \"params\": {\"text\": \"📱 Origem: Instagram ({{ $json.eventType }})\\n💬 Mensagem: {{ $json.message }}\\n📅 Data: {{ $json.timestamp }}\"}}]",
+        "jsonBody": "={{ JSON.stringify([{note_type:'common',params:{text:'Origem: Instagram ('+$json.eventType+')\\nMensagem: '+($json.message||'N/A')+'\\nData: '+$json.timestamp}}]) }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "node-add-note",
       "name": "Add CRM Note",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2750, 300],
+      "position": [
+        3750,
+        300
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "kommo-auth",
@@ -220,23 +402,29 @@
     },
     {
       "parameters": {
-        "jsCode": "const prevData = $('Extract Lead ID').first().json;\n\n// Skip AI processing for follows (no message to respond to)\nif (prevData.eventType === 'follow') {\n  return [{\n    json: {\n      ...prevData,\n      aiResponse: 'Olá! Bem-vindo(a) ao Instituto Be Healthy! 😊 Estamos aqui para cuidar da sua saúde e bem-estar. Se tiver alguma dúvida, é só nos chamar!',\n      classification: {\n        lead_temperature: 'cold',\n        interest_area: 'unknown',\n        should_handoff: false,\n        reasoning: 'New follower - initial greeting'\n      }\n    }\n  }];\n}\n\n// For DMs and comments, call OpenAI\nconst openaiKey = $env.OPENAI_API_KEY;\nconst model = $env.OPENAI_MODEL || 'gpt-4o';\n\nconst systemPrompt = `You are an AI assistant for Instituto Be Healthy (@dr.felipefranca).\n\nRules:\n- Welcome and engage Instagram leads using SPIN methodology\n- Speak in Brazilian Portuguese\n- Be empathetic, professional, welcoming\n- NEVER give medical advice, prescribe treatments, or analyze exams\n- Redirect medical questions to in-person consultation\n- Classify the lead after each interaction\n\nAfter your response, output classification:\n<classification>\n{\"lead_temperature\":\"hot|warm|cold|unqualified\",\"interest_area\":\"weight_loss|aesthetics|general|unknown\",\"should_handoff\":true|false,\"reasoning\":\"brief\"}\n</classification>`;\n\nconst response = await fetch('https://api.openai.com/v1/chat/completions', {\n  method: 'POST',\n  headers: {\n    'Authorization': `Bearer ${openaiKey}`,\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\n    model,\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: `[${prevData.eventType}] ${prevData.senderUsername}: ${prevData.message}` }\n    ],\n    max_tokens: 500,\n    temperature: 0.7\n  })\n});\n\nconst data = await response.json();\nconst aiText = data.choices[0].message.content;\n\n// Parse classification\nlet classification = { lead_temperature: 'cold', interest_area: 'unknown', should_handoff: false, reasoning: 'default' };\nconst classMatch = aiText.match(/<classification>\\s*(\\{[\\s\\S]*?\\})\\s*<\\/classification>/);\nif (classMatch) {\n  try { classification = JSON.parse(classMatch[1]); } catch(e) {}\n}\n\nconst cleanResponse = aiText.replace(/<classification>[\\s\\S]*?<\\/classification>/, '').trim();\n\nreturn [{\n  json: {\n    ...prevData,\n    aiResponse: cleanResponse,\n    classification\n  }\n}];"
+        "jsCode": "const prevData=$('Merge Lead Data').first().json;\nif(prevData.eventType==='follow'){\n  return [{json:{...prevData,aiResponse:'Olá! Bem-vindo(a) ao Instituto Be Healthy! Que bom ter você por aqui. Estamos aqui para cuidar da sua saúde e bem-estar. Se tiver alguma dúvida ou quiser saber mais sobre nossos tratamentos, é só nos chamar!',classification:{lead_temperature:'cold',interest_area:'unknown',should_handoff:false,reasoning:'New follower - deterministic greeting'},tokensUsed:0}}];\n}\nlet conversationHistory='';\nif(prevData.leadExists&&prevData.leadId){\n  try{\n    const nr=await fetch($env.KOMMO_BASE_URL+'/leads/'+prevData.leadId+'/notes?limit=5&order=desc',{headers:{'Authorization':'Bearer '+$env.KOMMO_ACCESS_TOKEN}});\n    if(nr.ok){\n      const nd=await nr.json();\n      if(nd._embedded&&nd._embedded.notes){\n        const notes=nd._embedded.notes.filter(n=>n.params&&n.params.text).map(n=>n.params.text).reverse();\n        if(notes.length>0) conversationHistory='\\n\\nConversation history (last '+notes.length+'):\\n'+notes.join('\\n---\\n');\n      }\n    }\n  }catch(e){}\n}\nconst systemPrompt=`You are the AI assistant for Instituto Be Healthy (@dr.felipefranca).\\nSpeak in Brazilian Portuguese. Be empathetic, professional, welcoming.\\n\\nSALES METHOD - SPIN:\\n- Situation: Ask about current health routine\\n- Problem: Identify health concerns or aesthetic goals\\n- Implication: Help understand impact of not addressing\\n- Need-Payoff: Guide toward Be Healthy solutions\\n\\nCLASSIFICATION (output after every response):\\n- hot: Wants to schedule, mentions procedure, urgency, asks prices\\n- warm: Asks about treatments, actively engaged\\n- cold: Just followed/liked without clear interest\\n- unqualified: Not target audience, spam\\n\\nINTEREST AREAS:\\n- weight_loss: Emagrecimento, dieta, saúde, metabolismo\\n- aesthetics: Estéticos, botox, preenchimento, pele, harmonização\\n- general: General health\\n- unknown: Cannot determine\\n\\nSTRICT RULES - NEVER:\\n- Give medical advice or diagnoses\\n- Prescribe medications\\n- Analyze exams\\n- Promise outcomes\\n- Schedule directly\\n\\nFor medical questions redirect: \"Essa é uma pergunta muito importante! Para te dar a melhor orientação, seria ideal agendar uma consulta com o Dr. Felipe.\"\\n\\nAfter your response output EXACTLY:\\n<classification>\\n{\"lead_temperature\":\"hot\",\"interest_area\":\"weight_loss\",\"should_handoff\":true,\"reasoning\":\"brief\"}\\n</classification>`;\nconst userMsg='['+prevData.eventType+'] '+(prevData.contactName||prevData.senderUsername)+': '+prevData.message+conversationHistory;\nconst oResp=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Authorization':'Bearer '+$env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model:$env.OPENAI_MODEL||'gpt-4o',messages:[{role:'system',content:systemPrompt},{role:'user',content:userMsg}],max_tokens:400,temperature:0.7})});\nif(!oResp.ok){const e=await oResp.text();throw new Error('OpenAI error ('+oResp.status+'): '+e);}\nconst aiData=await oResp.json();\nconst aiText=aiData.choices[0].message.content;\nlet classification={lead_temperature:'cold',interest_area:'unknown',should_handoff:false,reasoning:'Not extracted'};\nconst cm=aiText.match(/<classification>\\s*(\\{[\\s\\S]*?\\})\\s*<\\/classification>/);\nif(cm){try{const p=JSON.parse(cm[1]);const vt=['hot','warm','cold','unqualified'];const va=['weight_loss','aesthetics','general','unknown'];classification={lead_temperature:vt.includes(p.lead_temperature)?p.lead_temperature:'cold',interest_area:va.includes(p.interest_area)?p.interest_area:'unknown',should_handoff:p.should_handoff===true,reasoning:String(p.reasoning||'')};}catch(e){}}\nconst cleanResp=aiText.replace(/<classification>[\\s\\S]*?<\\/classification>/,'').trim();\nreturn [{json:{...prevData,aiResponse:cleanResp,classification,tokensUsed:aiData.usage?aiData.usage.total_tokens:0}}];"
       },
       "id": "node-ai-agent",
       "name": "AI Conversation Agent",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3000, 300]
+      "position": [
+        4000,
+        300
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const data = $input.first().json;\nconst { classification, leadId } = data;\n\nconst temperatureToStage = {\n  cold: 'Novo Seguidor',\n  warm: 'Qualificação',\n  hot: 'Interesse Real',\n  unqualified: 'Novo Seguidor'\n};\n\nconst stageName = temperatureToStage[classification.lead_temperature] || 'Novo Seguidor';\n\n// Map stage names to environment variable status IDs\nconst stageToEnvVar = {\n  'Novo Seguidor': $env.KOMMO_STATUS_NOVO_SEGUIDOR,\n  'Qualificação': $env.KOMMO_STATUS_QUALIFICACAO,\n  'Interesse Real': $env.KOMMO_STATUS_INTERESSE_REAL\n};\n\nconst statusId = stageToEnvVar[stageName] || $env.KOMMO_STATUS_NOVO_SEGUIDOR;\n\nreturn [{\n  json: {\n    ...data,\n    targetStage: stageName,\n    targetStatusId: statusId\n  }\n}];"
+        "jsCode": "const data=$input.first().json;\nconst {classification}=data;\nconst map={cold:{n:'Novo Seguidor',e:'KOMMO_STATUS_NOVO_SEGUIDOR'},warm:{n:'Qualificação',e:'KOMMO_STATUS_QUALIFICACAO'},hot:{n:'Interesse Real',e:'KOMMO_STATUS_INTERESSE_REAL'},unqualified:{n:'Novo Seguidor',e:'KOMMO_STATUS_NOVO_SEGUIDOR'}};\nconst stage=map[classification.lead_temperature]||map.cold;\nconst statusId=$env[stage.e];\nif(!statusId) throw new Error('Env var '+stage.e+' not set.');\nreturn [{json:{...data,targetStage:stage.n,targetStatusId:Number(statusId)}}];"
       },
       "id": "node-classify",
       "name": "Lead Classification",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3250, 300]
+      "position": [
+        4250,
+        300
+      ]
     },
     {
       "parameters": {
@@ -244,16 +432,21 @@
         "url": "={{ $env.KOMMO_BASE_URL }}/leads",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "=[{\"id\": {{ $json.leadId }}, \"status_id\": {{ $json.targetStatusId }}}]",
+        "jsonBody": "={{ JSON.stringify([{id:$json.leadId,status_id:$json.targetStatusId}]) }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "node-update-stage",
       "name": "Update Pipeline Stage",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [3500, 300],
+      "position": [
+        4500,
+        300
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "kommo-auth",
@@ -264,29 +457,46 @@
     {
       "parameters": {
         "conditions": {
-          "boolean": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
             {
-              "value1": "={{ $('Lead Classification').first().json.classification.should_handoff }}",
-              "value2": true
+              "id": "handoff-check",
+              "leftValue": "={{ $('Lead Classification').first().json.classification.should_handoff }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
-          ]
+          ],
+          "combinator": "and"
         }
       },
       "id": "node-check-handoff",
       "name": "Should Handoff?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [3750, 300]
+      "typeVersion": 2,
+      "position": [
+        4750,
+        300
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const data = $('Lead Classification').first().json;\nconst { classification, leadId } = data;\n\nconst operators = {\n  weight_loss: { name: 'Andrea', userId: 14813416, stage: 'Encaminhado Andrea' },\n  aesthetics: { name: 'Thais', userId: 14832028, stage: 'Encaminhado Thais' }\n};\n\nconst operator = operators[classification.interest_area] || operators.weight_loss;\n\nconst stageEnvMap = {\n  'Encaminhado Andrea': $env.KOMMO_STATUS_ANDREA,\n  'Encaminhado Thais': $env.KOMMO_STATUS_THAIS\n};\n\nreturn [{\n  json: {\n    leadId,\n    operatorName: operator.name,\n    responsibleUserId: operator.userId,\n    targetStatusId: stageEnvMap[operator.stage],\n    handoffMessage: `Vou te conectar com ${operator.name}, que é especialista nessa área e vai poder te ajudar melhor! Ela vai entrar em contato em breve.`,\n    aiResponse: data.aiResponse\n  }\n}];"
+        "jsCode": "const data=$('Lead Classification').first().json;\nconst {classification,leadId}=data;\nconst ops={weight_loss:{name:'Andrea',userId:14813416,envVar:'KOMMO_STATUS_ANDREA',area:'Emagrecimento e saúde'},aesthetics:{name:'Thais',userId:14832028,envVar:'KOMMO_STATUS_THAIS',area:'Procedimentos estéticos'}};\nconst op=ops[classification.interest_area]||ops.weight_loss;\nconst statusId=$env[op.envVar];\nif(!statusId) throw new Error('Env var '+op.envVar+' not set.');\nreturn [{json:{leadId,operatorName:op.name,operatorArea:op.area,responsibleUserId:op.userId,targetStatusId:Number(statusId),handoffMessage:'Vou te conectar com '+op.name+', que é especialista em '+op.area+' e vai poder te ajudar melhor! Ela vai entrar em contato em breve.',aiResponse:data.aiResponse,classification:data.classification,senderId:data.senderId,eventType:data.eventType}}];"
       },
       "id": "node-resolve-handoff",
       "name": "Resolve Handoff Operator",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [4000, 200]
+      "position": [
+        5000,
+        200
+      ]
     },
     {
       "parameters": {
@@ -294,16 +504,21 @@
         "url": "={{ $env.KOMMO_BASE_URL }}/leads",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "=[{\"id\": {{ $json.leadId }}, \"status_id\": {{ $json.targetStatusId }}, \"responsible_user_id\": {{ $json.responsibleUserId }}}]",
+        "jsonBody": "={{ JSON.stringify([{id:$json.leadId,status_id:$json.targetStatusId,responsible_user_id:$json.responsibleUserId}]) }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "node-assign-lead",
       "name": "Assign Lead to Operator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [4250, 200],
+      "position": [
+        5250,
+        200
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "kommo-auth",
@@ -317,16 +532,21 @@
         "url": "={{ $env.KOMMO_BASE_URL }}/leads/{{ $('Resolve Handoff Operator').first().json.leadId }}/notes",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "=[{\"note_type\": \"common\", \"params\": {\"text\": \"🤖 Lead qualified automatically by Instagram AI agent. Transferred to human operator: {{ $('Resolve Handoff Operator').first().json.operatorName }}.\"}}]",
+        "jsonBody": "={{ JSON.stringify([{note_type:'common',params:{text:'Lead qualified automatically by Instagram AI agent.\\nTransferred to: '+$('Resolve Handoff Operator').first().json.operatorName+' ('+$('Resolve Handoff Operator').first().json.operatorArea+')\\nClassification: '+$('Resolve Handoff Operator').first().json.classification.lead_temperature+'\\nReasoning: '+$('Resolve Handoff Operator').first().json.classification.reasoning}}]) }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "node-handoff-note",
       "name": "Add Handoff Note",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [4500, 200],
+      "position": [
+        5500,
+        200
+      ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "kommo-auth",
@@ -336,124 +556,367 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ status: 'ok', response: $('AI Conversation Agent').first().json.aiResponse }) }}"
+        "jsCode": "const data=$('Resolve Handoff Operator').first().json;\nif(data.eventType==='dm'&&data.senderId&&$env.META_ACCESS_TOKEN){\n  try{\n    const r=await fetch('https://graph.instagram.com/v21.0/me/messages',{method:'POST',headers:{'Authorization':'Bearer '+$env.META_ACCESS_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({recipient:{id:data.senderId},message:{text:data.handoffMessage}})});\n    return [{json:{...data,igReplyStatus:r.ok?'sent':'failed'}}];\n  }catch(e){return [{json:{...data,igReplyStatus:'error',igReplyError:e.message}}];}\n}\nreturn [{json:{...data,igReplyStatus:data.eventType!=='dm'?'not_dm':'no_meta_token'}}];"
       },
-      "id": "node-respond-no-handoff",
-      "name": "Respond (No Handoff)",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [4000, 450]
+      "id": "node-ig-reply-handoff",
+      "name": "Send IG Reply (Handoff)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5750,
+        200
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ status: 'handoff', response: $('Resolve Handoff Operator').first().json.handoffMessage, operator: $('Resolve Handoff Operator').first().json.operatorName }) }}"
+        "responseBody": "={{ JSON.stringify({status:'handoff',operator:$json.operatorName,area:$json.operatorArea,classification:$json.classification,igReplyStatus:$json.igReplyStatus}) }}",
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "node-respond-handoff",
       "name": "Respond (Handoff)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [4750, 200]
+      "position": [
+        6000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data=$('Lead Classification').first().json;\nif(data.eventType==='dm'&&data.senderId&&$env.META_ACCESS_TOKEN){\n  try{\n    const r=await fetch('https://graph.instagram.com/v21.0/me/messages',{method:'POST',headers:{'Authorization':'Bearer '+$env.META_ACCESS_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({recipient:{id:data.senderId},message:{text:data.aiResponse}})});\n    return [{json:{...data,igReplyStatus:r.ok?'sent':'failed'}}];\n  }catch(e){return [{json:{...data,igReplyStatus:'error',igReplyError:e.message}}];}\n}\nreturn [{json:{...data,igReplyStatus:data.eventType!=='dm'?'not_dm':'no_meta_token'}}];"
+      },
+      "id": "node-ig-reply-normal",
+      "name": "Send IG Reply (Normal)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5000,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({status:'ok',classification:$json.classification,igReplyStatus:$json.igReplyStatus}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-no-handoff",
+      "name": "Respond (No Handoff)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        5250,
+        450
+      ]
     }
   ],
   "connections": {
     "Instagram Webhook Trigger": {
       "main": [
-        [{ "node": "Parse Instagram Event", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Validate Environment",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Webhook Verification": {
       "main": [
-        [{ "node": "Verify Response", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Verify Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Environment": {
+      "main": [
+        [
+          {
+            "node": "Parse Instagram Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Parse Instagram Event": {
       "main": [
-        [{ "node": "Filter Valid Events", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Filter Valid Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Filter Valid Events": {
       "main": [
-        [],
-        [{ "node": "Check Contact in Kommo", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Check Contact in Kommo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Check Contact in Kommo": {
       "main": [
-        [{ "node": "Evaluate Contact Result", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Evaluate Contact Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Evaluate Contact Result": {
       "main": [
-        [{ "node": "Contact Exists?", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Contact Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Contact Exists?": {
       "main": [
-        [{ "node": "Merge Contact Data", "type": "main", "index": 0 }],
-        [{ "node": "Create Contact", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Merge Contact Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Create Contact": {
       "main": [
-        [{ "node": "Merge Contact Data", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Merge Contact Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Merge Contact Data": {
       "main": [
-        [{ "node": "Create Lead", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Check Existing Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Lead": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Lead Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Lead Result": {
+      "main": [
+        [
+          {
+            "node": "Lead Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Exists?": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Create Lead": {
       "main": [
-        [{ "node": "Extract Lead ID", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Merge Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Extract Lead ID": {
+    "Merge Lead Data": {
       "main": [
-        [{ "node": "Add CRM Note", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Add CRM Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Add CRM Note": {
       "main": [
-        [{ "node": "AI Conversation Agent", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "AI Conversation Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "AI Conversation Agent": {
       "main": [
-        [{ "node": "Lead Classification", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Lead Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Lead Classification": {
       "main": [
-        [{ "node": "Update Pipeline Stage", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Update Pipeline Stage",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Update Pipeline Stage": {
       "main": [
-        [{ "node": "Should Handoff?", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Should Handoff?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Should Handoff?": {
       "main": [
-        [{ "node": "Resolve Handoff Operator", "type": "main", "index": 0 }],
-        [{ "node": "Respond (No Handoff)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Resolve Handoff Operator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send IG Reply (Normal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Resolve Handoff Operator": {
       "main": [
-        [{ "node": "Assign Lead to Operator", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Assign Lead to Operator",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Assign Lead to Operator": {
       "main": [
-        [{ "node": "Add Handoff Note", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Add Handoff Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Add Handoff Note": {
       "main": [
-        [{ "node": "Respond (Handoff)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Send IG Reply (Handoff)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send IG Reply (Handoff)": {
+      "main": [
+        [
+          {
+            "node": "Respond (Handoff)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send IG Reply (Normal)": {
+      "main": [
+        [
+          {
+            "node": "Respond (No Handoff)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
@@ -463,8 +926,14 @@
     "saveDataSuccessExecution": "all"
   },
   "tags": [
-    { "name": "instagram" },
-    { "name": "social-selling" },
-    { "name": "be-healthy" }
+    {
+      "name": "instagram"
+    },
+    {
+      "name": "social-selling"
+    },
+    {
+      "name": "be-healthy"
+    }
   ]
 }

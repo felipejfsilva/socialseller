@@ -1,0 +1,26 @@
+{
+  "description": "Kommo API response: contact found by username search",
+  "_embedded": {
+    "contacts": [
+      {
+        "id": 90001,
+        "name": "maria_silva_rj",
+        "responsible_user_id": 0,
+        "custom_fields_values": [
+          {
+            "field_code": "IM",
+            "values": [
+              { "value": "maria_silva_rj", "enum_code": "OTHER" }
+            ]
+          }
+        ],
+        "_embedded": {
+          "tags": [
+            { "id": 1, "name": "instagram" },
+            { "id": 2, "name": "social-selling" }
+          ]
+        }
+      }
+    ]
+  }
+}

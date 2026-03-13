@@ -1,0 +1,17 @@
+{
+  "description": "AI classification result: incompatible/unqualified lead - no handoff",
+  "scenario": "User sends spam or unrelated message",
+  "input_message": "Compre meu curso de marketing digital! Link na bio. Promoção imperdível!!!",
+  "expected_classification": {
+    "lead_temperature": "unqualified",
+    "interest_area": "unknown",
+    "should_handoff": false,
+    "reasoning": "Spam/promotional content, not a potential patient"
+  },
+  "expected_routing": {
+    "operator": null,
+    "responsible_user_id": null,
+    "stage": "Novo Seguidor",
+    "handoff": false
+  }
+}

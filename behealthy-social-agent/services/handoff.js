@@ -3,26 +3,29 @@
  *
  * Manages the transition from AI agent to human operator.
  * Routes qualified leads to Andrea (weight loss) or Thais (aesthetics).
+ *
+ * ARCHITECTURE NOTE: See lead-classifier.js for sync instructions with n8n workflow.
  */
 
 const { assignLead } = require('./kommo-leads');
 const { addHandoffNote } = require('./kommo-notes');
 const { clearLeadHistory } = require('./ai-agent');
+const constants = require('../config/constants');
 
 const OPERATORS = {
   andrea: {
-    name: 'Andrea',
-    userId: 14813416,
-    stage: 'Encaminhado Andrea',
-    area: 'weight_loss',
-    description: 'Emagrecimento e saúde'
+    name: constants.OPERATORS.andrea.name,
+    userId: constants.OPERATORS.andrea.userId,
+    stage: constants.OPERATORS.andrea.stage,
+    area: constants.OPERATORS.andrea.area,
+    description: constants.OPERATORS.andrea.areaLabel
   },
   thais: {
-    name: 'Thais',
-    userId: 14832028,
-    stage: 'Encaminhado Thais',
-    area: 'aesthetic_procedures',
-    description: 'Procedimentos estéticos'
+    name: constants.OPERATORS.thais.name,
+    userId: constants.OPERATORS.thais.userId,
+    stage: constants.OPERATORS.thais.stage,
+    area: constants.OPERATORS.thais.area,
+    description: constants.OPERATORS.thais.areaLabel
   }
 };
 

@@ -1,0 +1,18 @@
+{
+  "description": "AI classification result: qualified aesthetics lead routed to Thais",
+  "scenario": "User asks about botox and facial harmonization, wants to schedule",
+  "input_message": "Oi! Estou interessada em harmonização facial e botox. Vocês fazem? Quero agendar uma avaliação.",
+  "expected_classification": {
+    "lead_temperature": "hot",
+    "interest_area": "aesthetics",
+    "should_handoff": true,
+    "reasoning": "Explicit interest in aesthetic procedures, wants to schedule evaluation"
+  },
+  "expected_routing": {
+    "operator": "Thais",
+    "responsible_user_id": 14832028,
+    "stage": "Encaminhado Thais",
+    "env_var": "KOMMO_STATUS_THAIS"
+  },
+  "expected_handoff_message": "Vou te conectar com Thais, que é especialista em Procedimentos estéticos e vai poder te ajudar melhor! Ela vai entrar em contato em breve."
+}

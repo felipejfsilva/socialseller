@@ -1,0 +1,8 @@
+{
+  "description": "Kommo API response: no contact found (HTTP 204 returns empty or no _embedded)",
+  "_links": {
+    "self": {
+      "href": "https://felipebhcrm.kommo.com/api/v4/contacts?query=unknown_user"
+    }
+  }
+}

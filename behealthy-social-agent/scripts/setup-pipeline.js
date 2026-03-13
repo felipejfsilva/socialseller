@@ -118,6 +118,51 @@ function saveConfig(pipelineId, statuses) {
   console.log(`Configuration saved to ${CONFIG_PATH}`);
 }
 
+/**
+ * Generate n8n environment variable mapping from pipeline config.
+ * Outputs a file that can be sourced or pasted into n8n settings.
+ */
+function generateN8nEnvMapping(pipelineId, statuses) {
+  const envPath = path.join(__dirname, '..', 'config', 'n8n-env-vars.json');
+
+  const statusMap = {};
+  for (const s of statuses) {
+    if (s.status_id === null) {
+      console.warn(`  WARNING: Status "${s.name}" has no status_id. Pipeline may need manual verification.`);
+    }
+  }
+
+  const findStatus = (name) => {
+    const s = statuses.find(st => st.name === name);
+    return s ? s.status_id : null;
+  };
+
+  const envVars = {
+    KOMMO_BASE_URL: BASE_URL,
+    KOMMO_PIPELINE_ID: pipelineId,
+    KOMMO_STATUS_NOVO_SEGUIDOR: findStatus('Novo Seguidor'),
+    KOMMO_STATUS_INTERACAO_INICIAL: findStatus('Interação Inicial'),
+    KOMMO_STATUS_QUALIFICACAO: findStatus('Qualificação'),
+    KOMMO_STATUS_INTERESSE_REAL: findStatus('Interesse Real'),
+    KOMMO_STATUS_ANDREA: findStatus('Encaminhado Andrea'),
+    KOMMO_STATUS_THAIS: findStatus('Encaminhado Thais'),
+    KOMMO_STATUS_CONSULTA_AGENDADA: findStatus('Consulta Agendada')
+  };
+
+  // Check for any null values
+  const nullVars = Object.entries(envVars).filter(([, v]) => v === null);
+  if (nullVars.length > 0) {
+    console.warn('\n  WARNING: The following environment variables could not be resolved:');
+    nullVars.forEach(([k]) => console.warn(`    - ${k}`));
+    console.warn('  The workflow will fail if these are not set manually in n8n.\n');
+  }
+
+  fs.writeFileSync(envPath, JSON.stringify(envVars, null, 2));
+  console.log(`n8n environment variables saved to ${envPath}`);
+
+  return envVars;
+}
+
 async function main() {
   console.log('Checking Kommo API access...');
   try {
@@ -142,7 +187,16 @@ async function main() {
 
   console.log('\nPipeline stages:');
   statuses.forEach(s => {
-    console.log(`  ${s.sort}. ${s.name} (status_id: ${s.status_id || 'pending'})`);
+    const idDisplay = s.status_id !== null ? s.status_id : 'NOT FOUND';
+    console.log(`  ${s.sort}. ${s.name} (status_id: ${idDisplay})`);
+  });
+
+  // Generate n8n environment variable mapping
+  const envVars = generateN8nEnvMapping(pipeline.id, statuses);
+
+  console.log('\nn8n environment variables:');
+  Object.entries(envVars).forEach(([k, v]) => {
+    console.log(`  ${k}=${v !== null ? v : 'MISSING'}`);
   });
 
   console.log('\nSetup complete.');

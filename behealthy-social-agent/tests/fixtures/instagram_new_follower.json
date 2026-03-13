@@ -1,0 +1,19 @@
+{
+  "description": "Instagram webhook payload: new follower event",
+  "object": "instagram",
+  "entry": [
+    {
+      "id": "17841400123456789",
+      "time": 1710000000,
+      "changes": [
+        {
+          "field": "followers",
+          "value": {
+            "id": "98765432100",
+            "username": "joao_santos_sp"
+          }
+        }
+      ]
+    }
+  ]
+}
