@@ -31,7 +31,7 @@ const PIPELINE_STATUSES = [
   { name: 'Interesse Real', sort: 4, color: '#ebffb1' },
   { name: 'Encaminhado Andrea', sort: 5, color: '#ffdc7f' },
   { name: 'Encaminhado Thais', sort: 6, color: '#ffc8c8' },
-  { name: 'Consulta Agendada', sort: 7, color: '#b1ffb1' }
+  { name: 'Consulta Agendada', sort: 7, color: '#87f2c0' }
 ];
 
 const headers = {
@@ -75,8 +75,9 @@ async function createPipeline() {
   const body = [
     {
       name: PIPELINE_NAME,
-      sort: 1,
+      sort: 100,
       is_main: false,
+      is_unsorted_on: true,
       _embedded: {
         statuses: PIPELINE_STATUSES.map(s => ({
           name: s.name,
