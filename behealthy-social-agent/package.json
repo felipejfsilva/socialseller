@@ -1,8 +1,10 @@
 {
   "name": "behealthy-social-agent",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "AI Social Selling Agent for Instituto Be Healthy - Instagram automation with Kommo CRM",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
     "start:n8n": "n8n start",
     "setup": "node scripts/setup-pipeline.js",
     "import:workflow": "n8n import:workflow --input=workflows/social-instagram-agent.json",
@@ -12,6 +14,8 @@
     "test:pipeline": "node scripts/test-pipeline.js"
   },
   "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
     "n8n": "^1.123.25"
   },
   "engines": {
