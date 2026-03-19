@@ -16,6 +16,7 @@ const kommo = require('../services/kommo');
 const memory = require('../services/conversationMemory');
 const { classifyIntent } = require('../ai/intentClassifier');
 const { generateReply } = require('../ai/replies');
+const { TEMPERATURE_TO_STAGE, OPERATORS, INTEREST_TO_OPERATOR, META_GRAPH_API_VERSION } = require('../../config/constants');
 
 // Rate limiting: 30 eventos por 60 segundos
 const rateLimitWindow = [];
@@ -218,7 +219,6 @@ function parseInstagramEvent(body) {
  * Roteamento: atualizar estágio e encaminhar se necessário
  */
 async function handleRouting(leadId, classification, aiResponse) {
-  const { TEMPERATURE_TO_STAGE, OPERATORS, INTEREST_TO_OPERATOR } = require('../../config/constants');
 
   const { lead_temperature, interest_area, should_handoff } = classification;
 
@@ -257,7 +257,6 @@ async function handleRouting(leadId, classification, aiResponse) {
  * Enviar resposta via Instagram Graph API
  */
 async function sendInstagramReply(recipientId, message) {
-  const { META_GRAPH_API_VERSION } = require('../../config/constants');
   const accessToken = process.env.META_ACCESS_TOKEN;
 
   if (!accessToken) return;

@@ -40,12 +40,11 @@ const OPERATORS = {
 // Maps AI interest_area classification to operator key
 const INTEREST_TO_OPERATOR = {
   weight_loss: 'andrea',
-  aesthetics: 'andrea', // Note: maps to thais below if aesthetic
-  general: 'andrea',    // Default
-  unknown: 'andrea'     // Default
+  aesthetics: 'thais',
+  hormonal: 'andrea',
+  general: 'andrea',
+  unknown: 'andrea'
 };
-// Override: aesthetics goes to Thais
-INTEREST_TO_OPERATOR.aesthetics = 'thais';
 
 const LEAD_TEMPERATURES = ['hot', 'warm', 'cold', 'unqualified'];
 const INTEREST_AREAS = ['weight_loss', 'aesthetics', 'general', 'unknown'];

@@ -32,6 +32,13 @@ app.get('/webhook/instagram', handleVerification);
 // Instagram webhook events (POST)
 app.post('/webhook/instagram', handleWebhook);
 
+// Load .env before anything else
+try {
+  require('dotenv').config();
+} catch {
+  // dotenv is optional — env vars can be set directly
+}
+
 // Validate required environment variables
 function validateEnv() {
   const required = [
@@ -42,17 +49,10 @@ function validateEnv() {
 
   const missing = required.filter(v => !process.env[v]);
   if (missing.length > 0) {
-    console.error(`[ERRO] Variáveis de ambiente obrigatórias não definidas: ${missing.join(', ')}`);
-    console.error('Crie o arquivo .env a partir de config/env.example');
-    process.exit(1);
+    console.warn(`[AVISO] Variáveis de ambiente não definidas: ${missing.join(', ')}`);
+    console.warn('Crie o arquivo .env a partir de config/env.example');
+    console.warn('O servidor vai iniciar, mas algumas funcionalidades não estarão disponíveis.');
   }
-}
-
-// Load .env if present
-try {
-  require('dotenv').config();
-} catch {
-  // dotenv is optional — env vars can be set directly
 }
 
 validateEnv();

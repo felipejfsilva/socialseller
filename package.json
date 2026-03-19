@@ -1,0 +1,11 @@
+{
+  "name": "socialseller",
+  "version": "1.0.0",
+  "description": "Social Selling Automation — Instituto Be Healthy",
+  "scripts": {
+    "start": "cd behealthy-social-agent && node server.js",
+    "install:agent": "cd behealthy-social-agent && npm install",
+    "setup": "cd behealthy-social-agent && npm run setup",
+    "test": "cd behealthy-social-agent && npm run validate"
+  }
+}
