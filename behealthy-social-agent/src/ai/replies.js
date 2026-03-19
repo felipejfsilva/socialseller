@@ -201,8 +201,8 @@ async function generateReply({ leadId, message, contactName, eventType, conversa
     return {
       response: getFallbackResponse(eventType, contactName),
       classification: {
-        lead_temperature: classification ? classification.temperature : 'cold',
-        interest_area: classification ? classification.interestArea : 'unknown',
+        lead_temperature: classification ? (classification.temperature || classification.lead_temperature || 'cold') : 'cold',
+        interest_area: classification ? (classification.interestArea || classification.interest_area || 'unknown') : 'unknown',
         should_handoff: false,
         reasoning: 'Fallback — erro na API OpenAI'
       }

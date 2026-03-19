@@ -47,7 +47,7 @@ const INTEREST_TO_OPERATOR = {
 };
 
 const LEAD_TEMPERATURES = ['hot', 'warm', 'cold', 'unqualified'];
-const INTEREST_AREAS = ['weight_loss', 'aesthetics', 'general', 'unknown'];
+const INTEREST_AREAS = ['weight_loss', 'aesthetics', 'hormonal', 'general', 'unknown'];
 
 const TEMPERATURE_TO_STAGE = {
   cold: 'Novo Seguidor',

@@ -119,15 +119,18 @@ async function handleWebhook(req, res) {
       classification
     });
 
-    // 7. Registrar nota da conversa no Kommo
+    // 7. Normalizar classificação (camelCase do intentClassifier → snake_case)
+    const normalizedClassification = normalizeClassification(aiResult.classification);
+
+    // 8. Registrar nota da conversa no Kommo
     await kommo.addLeadNote(lead.id, {
       origin: `Instagram ${event.type}`,
       initialMessage: event.text,
-      summary: `Resposta IA: ${aiResult.response.substring(0, 200)}... | Temperatura: ${aiResult.classification.lead_temperature}`
+      summary: `Resposta IA: ${aiResult.response.substring(0, 200)}... | Temperatura: ${normalizedClassification.lead_temperature}`
     });
 
-    // 8. Atualizar estágio do pipeline
-    const routingResult = await handleRouting(lead.id, aiResult.classification, aiResult.response);
+    // 9. Atualizar estágio do pipeline
+    const routingResult = await handleRouting(lead.id, normalizedClassification, aiResult.response);
 
     if (routingResult.action === 'handoff') {
       console.log(`[ENCAMINHAMENTO] Lead ${lead.id} → ${routingResult.assignedTo}`);
@@ -144,11 +147,11 @@ async function handleWebhook(req, res) {
       await sendInstagramReply(event.senderId, replyMessage);
     }
 
-    // 10. Salvar contexto da conversa
+    // 11. Salvar contexto da conversa
     memory.saveConversationTurn(lead.id, {
       userMessage: event.text,
       aiResponse: replyMessage,
-      classification: aiResult.classification,
+      classification: normalizedClassification,
       timestamp: new Date().toISOString()
     });
 
@@ -213,6 +216,22 @@ function parseInstagramEvent(body) {
   }
 
   return null;
+}
+
+/**
+ * Normalizar classificação para snake_case consistente.
+ * Aceita tanto o schema do intentClassifier (camelCase) quanto o do OpenAI (snake_case).
+ */
+function normalizeClassification(classification) {
+  if (!classification) {
+    return { lead_temperature: 'cold', interest_area: 'unknown', should_handoff: false };
+  }
+  return {
+    lead_temperature: classification.lead_temperature || classification.temperature || 'cold',
+    interest_area: classification.interest_area || classification.interestArea || 'unknown',
+    should_handoff: classification.should_handoff ?? classification.shouldHandoff ?? false,
+    reasoning: classification.reasoning || ''
+  };
 }
 
 /**
