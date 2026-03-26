@@ -161,7 +161,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const prevData = $('Contact Exists?').first().json;\nlet contactId = prevData.contactId, contactName = prevData.contactName;\n\nif (!contactId) {\n  const r = $input.first().json;\n  if (r && r._embedded && r._embedded.contacts && r._embedded.contacts.length > 0) {\n    contactId = r._embedded.contacts[0].id;\n    contactName = r._embedded.contacts[0].name;\n  }\n}\n\nif (!contactId) {\n  return [{ json: { ...prevData, contactId: null, contactName: prevData.senderUsername, _contactFailed: true } }];\n}\n\nreturn [{ json: { ...prevData, contactId, contactName: contactName || prevData.senderUsername } }];"
+        "jsCode": "const prevData = $('Evaluate Contact').first().json;\nlet contactId = prevData.contactId, contactName = prevData.contactName;\n\nif (!contactId) {\n  const r = $input.first().json;\n  if (r && r._embedded && r._embedded.contacts && r._embedded.contacts.length > 0) {\n    contactId = r._embedded.contacts[0].id;\n    contactName = r._embedded.contacts[0].name;\n  }\n}\n\nif (!contactId) {\n  return [{ json: { ...prevData, contactId: null, contactName: prevData.senderUsername, _contactFailed: true } }];\n}\n\nreturn [{ json: { ...prevData, contactId, contactName: contactName || prevData.senderUsername } }];"
       },
       "id": "mudanca-merge-contact",
       "name": "Merge Contact Data",
@@ -254,7 +254,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const prevData = $('Lead Exists?').first().json;\nlet leadId = prevData.leadId;\n\nif (!leadId) {\n  const r = $input.first().json;\n  if (r && r._embedded && r._embedded.leads && r._embedded.leads.length > 0) {\n    leadId = r._embedded.leads[0].id;\n  }\n}\n\nif (!leadId) {\n  return [{ json: { ...prevData, leadId: null, _leadFailed: true } }];\n}\n\nreturn [{ json: { ...prevData, leadId } }];"
+        "jsCode": "const prevData = $('Evaluate Lead').first().json;\nlet leadId = prevData.leadId;\n\nif (!leadId) {\n  const r = $input.first().json;\n  if (r && r._embedded && r._embedded.leads && r._embedded.leads.length > 0) {\n    leadId = r._embedded.leads[0].id;\n  }\n}\n\nif (!leadId) {\n  return [{ json: { ...prevData, leadId: null, _leadFailed: true } }];\n}\n\nreturn [{ json: { ...prevData, leadId } }];"
       },
       "id": "mudanca-merge-lead",
       "name": "Merge Lead Data",
