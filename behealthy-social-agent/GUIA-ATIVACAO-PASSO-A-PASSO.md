@@ -342,5 +342,134 @@ npm run start:n8n
 
 ---
 
-> Ao completar todos os 5 passos com sucesso, o sistema esta **em producao**.
+---
+
+## PASSO 6 — Automacao MUDANCA (Comentario no Reel)
+
+Este passo configura o workflow que detecta quando alguem comenta "MUDANCA" no Reel e envia uma DM personalizada direcionando para consulta.
+
+### 6A. Configurar Media ID do Reel
+
+1. No terminal, rode:
+   ```bash
+   npm run setup:mudanca
+   ```
+2. O script vai buscar o ID do reel automaticamente e mostrar na tela
+3. Copie o valor de `MUDANCA_MEDIA_ID` e adicione no `.env`:
+   ```
+   MUDANCA_MEDIA_ID=<o_id_que_apareceu>
+   ```
+
+> **Se o script nao encontrar**: Abra o link abaixo no navegador, substituindo os valores:
+> `https://graph.instagram.com/v21.0/SEU_INSTAGRAM_ACCOUNT_ID/media?fields=id,shortcode&access_token=SEU_META_ACCESS_TOKEN`
+> Procure o entry com `"shortcode": "DWT8AMJxcHH"` e copie o `id`.
+
+### 6B. Adicionar Variavel no n8n
+
+1. No n8n, va em **Settings** > **Environment Variables**
+2. Adicione:
+   - `MUDANCA_MEDIA_ID`: Cole o valor que voce obteve acima
+3. **Reinicie o n8n** (Ctrl+C e `npm run start:n8n`)
+
+### 6C. Importar o Workflow MUDANCA
+
+1. No n8n, clique em **Import from File**
+2. Selecione: `workflows/comment-mudanca-automation.json`
+3. O workflow deve aparecer com **20 nodes** conectados
+4. Vincule a credencial **Kommo Bearer Auth** nos **6 nodes HTTP** (mesmos passos do Passo 3E):
+
+| # | Nome do Node | Funcao |
+|---|-------------|--------|
+| 1 | **Check Contact in Kommo** | Busca contato existente |
+| 2 | **Create Contact** | Cria novo contato |
+| 3 | **Check Existing Lead** | Busca lead existente |
+| 4 | **Create Lead** | Cria novo lead |
+| 5 | **Add CRM Note** | Registra nota da automacao |
+| 6 | **Move to Consulta Stage** | Move lead para Consulta Agendada |
+
+5. Clique em **Save** (Ctrl+S)
+
+### 6D. Configurar Webhook no Meta
+
+1. No Meta Developer Console, va em **Webhooks** > **Instagram**
+2. Adicione uma **nova subscription** (ou edite a existente):
+   - **Callback URL**: `https://<seu-dominio>/webhook/instagram-comment-mudanca`
+   - **Verify Token**: Mesmo token do `.env`
+3. Assine o campo: `comments`
+
+> **Alternativa**: Se voce ja tem o webhook principal assinando `feed`/`comments`, o mesmo payload sera entregue. Nesse caso, nao e necessario criar um webhook separado — o n8n consegue rodar ambos os workflows com o mesmo payload.
+
+### 6E. Testar a Automacao
+
+```bash
+# Teste 1: Comentario MUDANCA (deve processar e gerar DM)
+npm run test:mudanca:webhook
+
+# Ou testar cenarios especificos:
+./scripts/test-mudanca-webhook.sh mudanca        # MUDANCA (deve processar)
+./scripts/test-mudanca-webhook.sh mudanca-lower   # mudanca minusculo (deve processar)
+./scripts/test-mudanca-webhook.sh no-accent       # MUDANCA sem acento (deve processar)
+./scripts/test-mudanca-webhook.sh other           # Comentario normal (deve pular)
+./scripts/test-mudanca-webhook.sh dedup           # Mesmo usuario de novo (deve pular)
+```
+
+### 6F. Verificar no Kommo
+
+1. Abra o Kommo > **Leads** > Pipeline **"SOCIAL SELLING INSTAGRAM"**
+2. Deve haver um lead com nome **"MUDANCA Reel - ana_carolina_sp"** (ou similar)
+3. O lead deve estar na etapa **"Consulta Agendada"**
+4. Clique no lead > veja as **notas** — deve conter:
+   - `AUTOMACAO MUDANCA REEL`
+   - Comentario original
+   - DM enviada
+
+### 6G. Ativar o Workflow
+
+1. No n8n, abra o workflow **"Comentario MUDANCA — Reel Be Healthy"**
+2. Clique no **toggle** no canto superior direito (deve ficar verde/ativo)
+3. Pronto! A partir de agora, comentarios "MUDANCA" serao processados automaticamente
+
+### Como saber se passou:
+
+| Verificacao | Passou | Falhou |
+|---|---|---|
+| `setup:mudanca` rodou sem erro | Media ID encontrado | Erro de API ou token invalido |
+| Testes retornam `status: ok` | MUDANCA processado com DM | Erro ou skipped incorretamente |
+| Teste `other` retorna `skipped` | Comentario normal ignorado | Processou comentario sem MUDANCA |
+| Lead criado no Kommo | Lead com tag `mudanca-reel` em "Consulta Agendada" | Sem lead ou etapa errada |
+
+---
+
+## Resumo dos Comandos
+
+```bash
+# 1. Criar .env
+cp config/env.example .env
+# (editar .env com suas chaves)
+
+# 2. Criar pipeline no Kommo
+npm run setup
+
+# 3. Configurar MUDANCA
+npm run setup:mudanca
+# (adicionar MUDANCA_MEDIA_ID no .env)
+
+# 4. Iniciar n8n
+npm run start:n8n
+# (configurar variaveis e credencial na UI do n8n)
+# (importar AMBOS os workflows e vincular credencial)
+
+# 5. Webhook: configurar no Meta Developer Console
+
+# 6. Testar tudo
+npm run test:all
+
+# 7. Testar webhook MUDANCA
+npm run test:mudanca:webhook
+```
+
+---
+
+> Ao completar todos os 6 passos com sucesso, o sistema esta **em producao**.
 > Monitore as primeiras 24 horas: execucoes no n8n, notas no Kommo, e uso no OpenAI.
+> O workflow MUDANCA aparece separado no n8n (aba Executions) — filtre por nome para monitorar.

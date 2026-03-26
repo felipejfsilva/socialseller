@@ -6,8 +6,10 @@ An n8n-based automation that receives Instagram events (DM, comment, follow),
 manages leads in Kommo CRM, uses OpenAI for conversational engagement via SPIN
 methodology, and routes qualified leads to the correct human operator.
 
-**Workflow**: 31 nodes, 27 connections, 13 code nodes, 8 HTTP nodes, 4 response endpoints
-**Validated**: 69/69 E2E assertions pass, structural validation clean
+**Workflows**:
+- Main: 31 nodes, 27 connections, 13 code nodes, 8 HTTP nodes, 4 response endpoints
+- MUDANCA: 20 nodes, 18 connections, 8 code nodes, 6 HTTP nodes, 2 response endpoints
+**Validated**: 111/111 E2E assertions pass (69 main + 42 MUDANCA), structural validation clean
 
 ---
 
@@ -77,25 +79,44 @@ Set ALL of these in n8n > Settings > Environment Variables:
 | `OPENAI_API_KEY` | Your OpenAI API key |
 | `OPENAI_MODEL` | `gpt-4o` (or your preferred model) |
 | `META_ACCESS_TOKEN` | Your Meta page access token |
+| `MUDANCA_MEDIA_ID` | Instagram media ID of the MUDANCA reel (from `npm run setup:mudanca`) |
 
 ### Phase 6: Workflow Import and Activation
 
-- [ ] **Import workflow**: `npm run import:workflow`
+- [ ] **Import main workflow**: `npm run import:workflow`
   - Or: n8n UI > Import from file > `workflows/social-instagram-agent.json`
-- [ ] **Verify credential binding**: Open workflow, check all HTTP nodes reference `Kommo Bearer Auth`
+- [ ] **Import MUDANCA workflow**: `npm run import:mudanca`
+  - Or: n8n UI > Import from file > `workflows/comment-mudanca-automation.json`
+  - Shortcut: `npm run import:all` (imports both)
+- [ ] **Verify credential binding**: Open each workflow, check all HTTP nodes reference `Kommo Bearer Auth`
+  - Main workflow: 8 HTTP nodes
+  - MUDANCA workflow: 6 HTTP nodes
 - [ ] **Test with fixtures** (before activating):
   ```bash
   # Start n8n
   npm run start:n8n
 
-  # In another terminal, test each path:
+  # In another terminal, test main workflow:
   ./scripts/test-webhook.sh dm
   ./scripts/test-webhook.sh comment
   ./scripts/test-webhook.sh follow
+
+  # Test MUDANCA workflow:
+  ./scripts/test-mudanca-webhook.sh mudanca
+  ./scripts/test-mudanca-webhook.sh other
   ```
-- [ ] **Verify responses**: Each test should return JSON with `status: 'ok'` or `status: 'handoff'`
+- [ ] **Verify responses**: Each test should return JSON with `status: 'ok'` or `status: 'skipped'`
 - [ ] **Check Kommo**: Verify test contacts/leads were created in the pipeline
-- [ ] **Activate workflow**: Toggle workflow to "Active" in n8n UI
+- [ ] **Activate both workflows**: Toggle each workflow to "Active" in n8n UI
+
+### Phase 6B: MUDANCA Reel Automation (Additional Steps)
+
+- [ ] **Fetch media ID**: `npm run setup:mudanca`
+- [ ] **Set `MUDANCA_MEDIA_ID`** in `.env` and in n8n environment variables
+- [ ] **Webhook**: Subscribe to `comments` events in Meta (same webhook or separate endpoint)
+  - MUDANCA webhook path: `/webhook/instagram-comment-mudanca`
+- [ ] **Test**: `./scripts/test-mudanca-webhook.sh mudanca` should return `status: ok`
+- [ ] **Verify Kommo lead**: Should appear with tag `mudanca-reel` in stage "Consulta Agendada"
 
 ### Phase 7: Knowledge Base
 
@@ -155,9 +176,12 @@ The Error Telemetry node runs before the final webhook response on the no-handof
 
 ### What to Watch
 1. **n8n Executions page**: Check for failed executions (should be zero — errors are caught)
+   - Filter by workflow name to separate main vs MUDANCA executions
 2. **Kommo notes**: Search for notes containing "SYSTEM ERROR LOG" to find degraded executions
+   - MUDANCA notes are prefixed with "AUTOMACAO MUDANCA REEL"
 3. **OpenAI usage**: Monitor at https://platform.openai.com/usage
 4. **Instagram webhook health**: Meta App Dashboard > Webhooks > Recent deliveries
+5. **MUDANCA cooldown**: Each user can only trigger MUDANCA once per 24h (dedup via n8n static data)
 
 ### Alerts to Set Up
 - n8n execution failure rate > 0 (indicates uncaught error)
@@ -171,13 +195,15 @@ The Error Telemetry node runs before the final webhook response on the no-handof
 
 ```bash
 # Validate locally (no credentials needed)
-npm run validate
+npm run validate          # Both workflows structure
+npm run test:all          # All 111 E2E assertions
 
 # Run setup (requires KOMMO_ACCESS_TOKEN)
-npm run setup
+npm run setup             # Kommo pipeline
+npm run setup:mudanca     # MUDANCA media ID
 
-# Import workflow into n8n
-npm run import:workflow
+# Import workflows into n8n
+npm run import:all        # Both workflows
 
 # Start n8n
 npm run start:n8n
@@ -186,6 +212,8 @@ npm run start:n8n
 ./scripts/test-webhook.sh dm
 ./scripts/test-webhook.sh comment
 ./scripts/test-webhook.sh follow
+./scripts/test-mudanca-webhook.sh mudanca
+./scripts/test-mudanca-webhook.sh other
 ```
 
 ---
@@ -195,15 +223,20 @@ npm run start:n8n
 | File | Purpose |
 |------|---------|
 | `workflows/social-instagram-agent.json` | Main n8n workflow (31 nodes) |
+| `workflows/comment-mudanca-automation.json` | MUDANCA comment automation workflow (20 nodes) |
 | `config/constants.js` | Canonical source of truth for operator IDs, stages, mappings |
 | `config/pipeline.json` | Pipeline config template (populated by setup) |
 | `config/n8n-env-vars.json` | Generated: n8n env var values (created by setup) |
 | `config/env.example` | Environment variable template |
-| `knowledge/manual-behealthy.md` | AI knowledge base (pending official content) |
+| `knowledge/manual-behealthy.md` | AI knowledge base |
 | `scripts/setup-pipeline.js` | Creates Kommo pipeline, extracts IDs |
+| `scripts/setup-mudanca.js` | Fetches MUDANCA_MEDIA_ID, validates env vars |
 | `scripts/start.sh` | Preflight checks and n8n startup |
-| `scripts/test-webhook.sh` | Test webhook payloads |
+| `scripts/test-webhook.sh` | Test main webhook payloads |
+| `scripts/test-mudanca-webhook.sh` | Test MUDANCA comment webhook (6 scenarios) |
 | `services/*.js` | Node.js reference implementations (canonical logic) |
-| `tests/validate-workflow.js` | Workflow structural validator |
-| `tests/e2e-validation.js` | E2E scenario validator (69 assertions) |
-| `tests/fixtures/*.json` | 8 test fixtures for all event types and paths |
+| `tests/validate-workflow.js` | Main workflow structural validator |
+| `tests/validate-mudanca.js` | MUDANCA workflow structural validator |
+| `tests/e2e-validation.js` | Main E2E scenario validator (69 assertions) |
+| `tests/e2e-mudanca-validation.js` | MUDANCA E2E scenario validator (42 assertions) |
+| `tests/fixtures/*.json` | 9 test fixtures for all event types and paths |
