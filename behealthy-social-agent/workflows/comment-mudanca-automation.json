@@ -1,0 +1,452 @@
+{
+  "name": "Comentário MUDANÇA — Reel Be Healthy",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-comment-mudanca",
+        "options": {
+          "rawBody": true
+        },
+        "responseMode": "responseNode"
+      },
+      "id": "mudanca-trigger",
+      "name": "Comment Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "instagram-comment-mudanca"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate required env vars\nconst required = [\n  'KOMMO_BASE_URL', 'KOMMO_ACCESS_TOKEN', 'KOMMO_PIPELINE_ID',\n  'KOMMO_STATUS_NOVO_SEGUIDOR', 'KOMMO_STATUS_INTERESSE_REAL',\n  'KOMMO_STATUS_CONSULTA_AGENDADA', 'OPENAI_API_KEY', 'META_ACCESS_TOKEN'\n];\nconst missing = required.filter(v => !$env[v]);\nif (missing.length > 0) {\n  throw new Error('Missing env vars: ' + missing.join(', '));\n}\nconst item = $input.first();\nitem.json._execStart = Date.now();\nitem.json._execId = Math.random().toString(36).slice(2, 10);\nreturn [item];"
+      },
+      "id": "mudanca-validate-env",
+      "name": "Validate Environment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Instagram comment webhook and check for MUDANÇA keyword\nconst body = $input.first().json.body;\nif (!body || !body.entry || !body.entry[0]) {\n  return [{ json: { skip: true, reason: 'No entry in payload' } }];\n}\n\nconst entry = body.entry[0];\n\n// Only process comment events\nif (!entry.changes || !entry.changes[0] || entry.changes[0].field !== 'comments') {\n  return [{ json: { skip: true, reason: 'Not a comment event' } }];\n}\n\nconst change = entry.changes[0];\nconst value = change.value;\n\nif (!value || !value.text || !value.from) {\n  return [{ json: { skip: true, reason: 'Missing comment data' } }];\n}\n\nconst commentText = value.text.trim();\nconst senderId = String(value.from.id);\nconst senderUsername = value.from.username || 'ig_user_' + senderId;\n\n// Check if comment contains MUDANÇA (case-insensitive, accent-insensitive)\nconst normalizedComment = commentText\n  .toUpperCase()\n  .normalize('NFD')\n  .replace(/[\\u0300-\\u036f]/g, '');\n\nconst hasMudanca = normalizedComment.includes('MUDANCA');\n\nif (!hasMudanca) {\n  return [{ json: { skip: true, reason: 'Comment does not contain MUDANÇA' } }];\n}\n\n// Filter by specific reel media ID (optional — if MUDANCA_MEDIA_ID is set)\nconst targetMediaId = $env.MUDANCA_MEDIA_ID || '';\nconst commentMediaId = value.media ? String(value.media.id) : '';\n\nif (targetMediaId && commentMediaId && commentMediaId !== targetMediaId) {\n  return [{ json: { skip: true, reason: 'Comment not on target reel' } }];\n}\n\n// Deduplication: check if we already processed this user recently\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.processedUsers) staticData.processedUsers = {};\n\nconst now = Date.now();\nconst cooldownMs = 24 * 60 * 60 * 1000; // 24h cooldown per user\nconst lastProcessed = staticData.processedUsers[senderId];\n\nif (lastProcessed && (now - lastProcessed) < cooldownMs) {\n  return [{ json: { skip: true, reason: 'User already processed in last 24h' } }];\n}\n\nstaticData.processedUsers[senderId] = now;\n\n// Clean old entries (keep last 48h)\nfor (const uid of Object.keys(staticData.processedUsers)) {\n  if (now - staticData.processedUsers[uid] > 2 * cooldownMs) {\n    delete staticData.processedUsers[uid];\n  }\n}\n\nreturn [{\n  json: {\n    skip: false,\n    eventType: 'comment',\n    senderId,\n    senderUsername,\n    commentText,\n    mediaId: commentMediaId,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "mudanca-parse-comment",
+      "name": "Parse & Filter MUDANÇA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "mudanca-filter-valid",
+      "name": "Is MUDANÇA Comment?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'skipped', reason: $json.reason || 'not_mudanca' }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "mudanca-respond-skip",
+      "name": "Respond Skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.KOMMO_BASE_URL }}/contacts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "query", "value": "={{ $json.senderUsername }}" }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mudanca-check-contact",
+      "name": "Check Contact in Kommo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 250],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kommo-auth",
+          "name": "Kommo Bearer Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst prevData = $('Parse & Filter MUDANÇA').first().json;\nlet contactId = null, contactExists = false, contactName = null;\n\nif (response && response._embedded && response._embedded.contacts && response._embedded.contacts.length > 0) {\n  const c = response._embedded.contacts[0];\n  contactId = c.id;\n  contactExists = true;\n  contactName = c.name;\n}\n\nreturn [{ json: { ...prevData, contactId, contactExists, contactName } }];"
+      },
+      "id": "mudanca-eval-contact",
+      "name": "Evaluate Contact",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 250]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "contact-check",
+              "leftValue": "={{ $json.contactExists }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "mudanca-contact-exists",
+      "name": "Contact Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1750, 250]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.KOMMO_BASE_URL }}/contacts",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ name: $json.senderUsername, custom_fields_values: [{ field_code: 'IM', values: [{ value: $json.senderUsername, enum_code: 'OTHER' }] }], _embedded: { tags: [{ name: 'instagram' }, { name: 'mudanca-reel' }, { name: 'social-selling' }] } }]) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mudanca-create-contact",
+      "name": "Create Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kommo-auth",
+          "name": "Kommo Bearer Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData = $('Contact Exists?').first().json;\nlet contactId = prevData.contactId, contactName = prevData.contactName;\n\nif (!contactId) {\n  const r = $input.first().json;\n  if (r && r._embedded && r._embedded.contacts && r._embedded.contacts.length > 0) {\n    contactId = r._embedded.contacts[0].id;\n    contactName = r._embedded.contacts[0].name;\n  }\n}\n\nif (!contactId) {\n  return [{ json: { ...prevData, contactId: null, contactName: prevData.senderUsername, _contactFailed: true } }];\n}\n\nreturn [{ json: { ...prevData, contactId, contactName: contactName || prevData.senderUsername } }];"
+      },
+      "id": "mudanca-merge-contact",
+      "name": "Merge Contact Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.KOMMO_BASE_URL }}/leads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "filter[contacts]", "value": "={{ $json.contactId }}" },
+            { "name": "filter[pipeline_id]", "value": "={{ $env.KOMMO_PIPELINE_ID }}" }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mudanca-check-lead",
+      "name": "Check Existing Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2500, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kommo-auth",
+          "name": "Kommo Bearer Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData = $('Merge Contact Data').first().json;\nif (prevData._contactFailed) {\n  return [{ json: { ...prevData, leadId: null, leadExists: false, _leadSkipped: true } }];\n}\nconst r = $input.first().json;\nlet leadId = null, leadExists = false;\nif (r && r._embedded && r._embedded.leads && r._embedded.leads.length > 0) {\n  leadId = r._embedded.leads[0].id;\n  leadExists = true;\n}\nreturn [{ json: { ...prevData, leadId, leadExists } }];"
+      },
+      "id": "mudanca-eval-lead",
+      "name": "Evaluate Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2750, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "lead-check",
+              "leftValue": "={{ $json.leadExists }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "mudanca-lead-exists",
+      "name": "Lead Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.KOMMO_BASE_URL }}/leads",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ name: 'MUDANÇA Reel - ' + $('Evaluate Lead').first().json.senderUsername, pipeline_id: Number($env.KOMMO_PIPELINE_ID), status_id: Number($env.KOMMO_STATUS_INTERESSE_REAL), _embedded: { contacts: [{ id: $('Evaluate Lead').first().json.contactId }], tags: [{ name: 'instagram' }, { name: 'mudanca-reel' }, { name: 'hot-lead' }] } }]) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mudanca-create-lead",
+      "name": "Create Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3250, 450],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kommo-auth",
+          "name": "Kommo Bearer Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData = $('Lead Exists?').first().json;\nlet leadId = prevData.leadId;\n\nif (!leadId) {\n  const r = $input.first().json;\n  if (r && r._embedded && r._embedded.leads && r._embedded.leads.length > 0) {\n    leadId = r._embedded.leads[0].id;\n  }\n}\n\nif (!leadId) {\n  return [{ json: { ...prevData, leadId: null, _leadFailed: true } }];\n}\n\nreturn [{ json: { ...prevData, leadId } }];"
+      },
+      "id": "mudanca-merge-lead",
+      "name": "Merge Lead Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate personalized DM based on Be Healthy manual — MUDANÇA reel context\nconst data = $input.first().json;\n\nconst contactName = data.contactName || data.senderUsername || '';\nconst firstName = contactName.split(/[_\\s.]/)[0];\n// Capitalize first letter\nconst displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();\n\n// System prompt based on Be Healthy manual + MUDANÇA reel context\nconst systemPrompt = `Você é a assistente de atendimento do Instituto Be Healthy (@dr.felipefranca).\nFale em português brasileiro. Seja empática, acolhedora e profissional.\n\nCONTEXTO: A pessoa comentou \"MUDANÇA\" em um Reel do Dr. Felipe sobre transformação de saúde e bem-estar.\nIsso é um sinal FORTE de interesse — ela quer mudar algo na vida dela (corpo, saúde, autoestima).\n\nSeu objetivo é:\n1. Acolher e validar o desejo de mudança\n2. Usar o método SPIN para entender o que ela quer mudar\n3. Conectar o desejo dela com os serviços do Instituto Be Healthy\n4. Direcionar para agendar uma consulta oferecendo 2 horários\n\nMÉTODO SPIN:\n- Situação: \"Como está sua relação com [saúde/corpo/autoestima] hoje?\"\n- Problema: \"O que mais te incomoda ultimamente?\"\n- Implicação: \"Isso tem impactado sua autoestima, rotina ou vida social?\"\n- Necessidade: \"Se pudesse mudar uma coisa agora, o que seria?\"\n\nREGRAS:\n- NUNCA dê conselhos médicos ou diagnósticos\n- NUNCA prescreva medicamentos\n- NUNCA prometa resultados específicos\n- SEMPRE redirecione para consulta: \"Essa é exatamente uma das coisas que o Dr. vai avaliar na sua consulta, de forma personalizada para o seu caso.\"\n- Foque na TRANSFORMAÇÃO, não no procedimento\n- Use o nome da pessoa\n- NÃO use \"agende sua consulta\" — ofereça 2 horários com escassez\n\nSERVIÇOS DISPONÍVEIS:\n- Consulta Diagnóstica Integrativa (R$800) — Avaliação completa + Bioimpedância InBody + Plano personalizado\n- MEP-6X — Protocolo de emagrecimento em 6 fases\n- Fast Slim (Tirzepatida) — Emagrecimento com medicação\n- Consulta Start (R$500) — Entrada acessível\n- Modulação Hormonal — Cansaço, menopausa, libido\n- Procedimentos Estéticos — Remodelação, celulite, protocolos corporais\n- Soroterapia — Diversos protocolos IV\n\nDIFERENCIAIS:\n- Mais de 5 anos de experiência\n- Satisfação acima de 95%\n- Protocolos exclusivos e personalizados\n- \"Nada é genérico aqui. O Dr. monta um plano exclusivo para o seu caso.\"\n\nGere UMA mensagem de DM (máximo 3 parágrafos curtos). Seja natural, não robótica.\nA mensagem deve:\n1. Cumprimentar pelo nome e validar que ela quer mudança\n2. Fazer UMA pergunta SPIN para entender o que ela quer mudar\n3. Mencionar brevemente que o Instituto pode ajudar nessa transformação`;\n\nconst userMsg = `A pessoa @${data.senderUsername} (nome: ${displayName}) comentou \"${data.commentText}\" no Reel sobre mudança. Gere a DM personalizada.`;\n\n// OpenAI call with retry\nlet aiResponse = null;\nlet lastError = null;\n\nfor (let attempt = 0; attempt < 2; attempt++) {\n  try {\n    const oResp = await fetch('https://api.openai.com/v1/chat/completions', {\n      method: 'POST',\n      headers: {\n        'Authorization': 'Bearer ' + $env.OPENAI_API_KEY,\n        'Content-Type': 'application/json'\n      },\n      body: JSON.stringify({\n        model: $env.OPENAI_MODEL || 'gpt-4o',\n        messages: [\n          { role: 'system', content: systemPrompt },\n          { role: 'user', content: userMsg }\n        ],\n        max_tokens: 350,\n        temperature: 0.7\n      }),\n      signal: AbortSignal.timeout(25000)\n    });\n\n    if (oResp.status === 429 && attempt === 0) {\n      await new Promise(r => setTimeout(r, 3000));\n      continue;\n    }\n\n    if (!oResp.ok) {\n      lastError = 'openai_' + oResp.status;\n      if (attempt === 0) { await new Promise(r => setTimeout(r, 2000)); continue; }\n      break;\n    }\n\n    const aiData = await oResp.json();\n    aiResponse = aiData.choices[0].message.content.trim();\n    break;\n  } catch (e) {\n    lastError = e.message;\n    if (attempt === 0) { await new Promise(r => setTimeout(r, 2000)); continue; }\n  }\n}\n\n// Fallback message based on Be Healthy manual\nif (!aiResponse) {\n  aiResponse = `Oi ${displayName}! 😊 Vi que você comentou no nosso Reel sobre mudança — e que bom que esse conteúdo te tocou!\\n\\nAqui no Instituto Be Healthy, acreditamos que toda transformação começa com uma decisão. Me conta: o que você mais gostaria de mudar hoje na sua saúde ou no seu corpo?\\n\\nO Dr. Felipe tem protocolos exclusivos e personalizados, com mais de 95% de satisfação. Posso te contar mais sobre como funciona! 💚`;\n}\n\nreturn [{ json: { ...data, dmMessage: aiResponse, _aiError: lastError } }];"
+      },
+      "id": "mudanca-generate-dm",
+      "name": "Generate MUDANÇA DM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3750, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.KOMMO_BASE_URL }}/leads/{{ $json.leadId }}/notes",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ note_type: 'common', params: { text: 'AUTOMAÇÃO MUDANÇA REEL\\nOrigem: Comentário Instagram\\nComentário: ' + $json.commentText + '\\nUsuário: @' + $json.senderUsername + '\\nDM Enviada: ' + $json.dmMessage.substring(0, 300) + '\\nData: ' + $json.timestamp } }]) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mudanca-add-note",
+      "name": "Add CRM Note",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [4000, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kommo-auth",
+          "name": "Kommo Bearer Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Send DM via Instagram Graph API\nconst data = $input.first().json;\nconst prevData = $('Generate MUDANÇA DM').first().json;\n\nif (!prevData.senderId || !$env.META_ACCESS_TOKEN) {\n  return [{ json: { ...prevData, igReplyStatus: 'no_meta_token_or_sender' } }];\n}\n\ntry {\n  const r = await fetch('https://graph.instagram.com/v21.0/me/messages', {\n    method: 'POST',\n    headers: {\n      'Authorization': 'Bearer ' + $env.META_ACCESS_TOKEN,\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify({\n      recipient: { id: prevData.senderId },\n      message: { text: prevData.dmMessage }\n    }),\n    signal: AbortSignal.timeout(15000)\n  });\n\n  if (!r.ok) {\n    const errText = await r.text();\n    return [{ json: { ...prevData, igReplyStatus: 'failed', igError: r.status + ': ' + errText } }];\n  }\n\n  return [{ json: { ...prevData, igReplyStatus: 'sent' } }];\n} catch (e) {\n  return [{ json: { ...prevData, igReplyStatus: 'error', igError: e.message } }];\n}"
+      },
+      "id": "mudanca-send-dm",
+      "name": "Send DM via Instagram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4250, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.KOMMO_BASE_URL }}/leads",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ id: $json.leadId, status_id: Number($env.KOMMO_STATUS_CONSULTA_AGENDADA || $env.KOMMO_STATUS_INTERESSE_REAL) }]) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 15000 }
+      },
+      "id": "mudanca-update-stage",
+      "name": "Move to Consulta Stage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [4500, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kommo-auth",
+          "name": "Kommo Bearer Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'ok', action: 'mudanca_dm_sent', user: $json.senderUsername, igReplyStatus: $json.igReplyStatus, leadId: $json.leadId }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "mudanca-respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [4750, 300]
+    }
+  ],
+  "connections": {
+    "Comment Webhook Trigger": {
+      "main": [
+        [{ "node": "Validate Environment", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validate Environment": {
+      "main": [
+        [{ "node": "Parse & Filter MUDANÇA", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse & Filter MUDANÇA": {
+      "main": [
+        [{ "node": "Is MUDANÇA Comment?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is MUDANÇA Comment?": {
+      "main": [
+        [{ "node": "Check Contact in Kommo", "type": "main", "index": 0 }],
+        [{ "node": "Respond Skipped", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Contact in Kommo": {
+      "main": [
+        [{ "node": "Evaluate Contact", "type": "main", "index": 0 }]
+      ]
+    },
+    "Evaluate Contact": {
+      "main": [
+        [{ "node": "Contact Exists?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Contact Exists?": {
+      "main": [
+        [{ "node": "Merge Contact Data", "type": "main", "index": 0 }],
+        [{ "node": "Create Contact", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Contact": {
+      "main": [
+        [{ "node": "Merge Contact Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Merge Contact Data": {
+      "main": [
+        [{ "node": "Check Existing Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Existing Lead": {
+      "main": [
+        [{ "node": "Evaluate Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "Evaluate Lead": {
+      "main": [
+        [{ "node": "Lead Exists?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Lead Exists?": {
+      "main": [
+        [{ "node": "Merge Lead Data", "type": "main", "index": 0 }],
+        [{ "node": "Create Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Lead": {
+      "main": [
+        [{ "node": "Merge Lead Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Merge Lead Data": {
+      "main": [
+        [{ "node": "Generate MUDANÇA DM", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate MUDANÇA DM": {
+      "main": [
+        [{ "node": "Add CRM Note", "type": "main", "index": 0 }]
+      ]
+    },
+    "Add CRM Note": {
+      "main": [
+        [{ "node": "Send DM via Instagram", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send DM via Instagram": {
+      "main": [
+        [{ "node": "Move to Consulta Stage", "type": "main", "index": 0 }]
+      ]
+    },
+    "Move to Consulta Stage": {
+      "main": [
+        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    { "name": "instagram" },
+    { "name": "mudanca" },
+    { "name": "comment-automation" },
+    { "name": "be-healthy" }
+  ]
+}
