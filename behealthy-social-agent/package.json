@@ -10,9 +10,16 @@
     "import:workflow": "n8n import:workflow --input=workflows/social-instagram-agent.json",
     "import:mudanca": "n8n import:workflow --input=workflows/comment-mudanca-automation.json",
     "import:all": "npm run import:workflow && npm run import:mudanca",
-    "validate": "node tests/validate-workflow.js && node tests/e2e-validation.js",
+    "setup:mudanca": "node scripts/setup-mudanca.js",
+    "setup:all": "npm run setup && npm run setup:mudanca",
+    "validate": "node tests/validate-workflow.js && node tests/validate-mudanca.js",
+    "validate:all": "npm run validate && npm run test:e2e && npm run test:mudanca:e2e",
     "test:workflow": "node tests/validate-workflow.js",
+    "test:mudanca": "node tests/validate-mudanca.js",
     "test:e2e": "node tests/e2e-validation.js",
+    "test:mudanca:e2e": "node tests/e2e-mudanca-validation.js",
+    "test:mudanca:webhook": "bash scripts/test-mudanca-webhook.sh",
+    "test:all": "npm run test:workflow && npm run test:mudanca && npm run test:e2e && npm run test:mudanca:e2e",
     "test:pipeline": "node scripts/test-pipeline.js"
   },
   "dependencies": {
