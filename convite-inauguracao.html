@@ -87,17 +87,55 @@
   .wordmark-top {
     font-family: 'Cormorant Garamond', serif;
     font-weight: 400;
-    font-size: 24px;
+    font-size: 28px;
     color: var(--gold);
-    letter-spacing: 0.15em;
+    letter-spacing: 0.04em;
     margin-bottom: 36px;
+    line-height: 1;
   }
   .wordmark-top .be {
     font-weight: 300;
     font-style: italic;
+    font-size: 0.5em;
+    display: block;
+    letter-spacing: 0.1em;
+    margin-bottom: -4px;
+  }
+  .wordmark-top .h-mark {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: 2.2em;
+    letter-spacing: 0;
+    line-height: 0.9;
+    display: block;
+    position: relative;
+  }
+  .wordmark-top .h-mark::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    width: 46px;
+    height: 1px;
+    background: var(--gold);
+    opacity: 0.8;
   }
   .wordmark-top .healthy {
-    font-weight: 500;
+    font-weight: 300;
+    font-style: italic;
+    font-size: 0.55em;
+    display: block;
+    letter-spacing: 0.08em;
+    margin-top: -2px;
+  }
+  /* Caso queira usar a logo oficial em PNG/SVG, descomente abaixo e coloque o arquivo em /img/logo.png */
+  .wordmark-top img {
+    max-width: 120px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
   }
 
   /* Separador dourado */
@@ -183,6 +221,36 @@
     transform: rotate(45deg);
     margin: 44px auto;
     opacity: 0.75;
+  }
+
+  /* Video — teaser do novo espaço */
+  .video-section {
+    margin: 48px auto 0;
+  }
+  .video-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 18px;
+  }
+  .video-frame {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%;
+    overflow: hidden;
+    background: var(--dark-wood);
+    border: 1px solid rgba(197, 164, 109, 0.3);
+  }
+  .video-frame iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
   }
 
   /* Nome do evento */
@@ -361,9 +429,11 @@
 <div class="invite">
   <div class="content">
 
-    <!-- Wordmark topo -->
+    <!-- Wordmark topo (substitua pelo arquivo oficial: <img src="img/logo.png" alt="be Healthy">) -->
     <div class="wordmark-top">
-      <span class="be">be</span> <span class="healthy">Healthy</span>
+      <span class="be">be</span>
+      <span class="h-mark">H</span>
+      <span class="healthy">healthy</span>
     </div>
 
     <div class="line line-lg"></div>
@@ -389,6 +459,19 @@
     <div class="hosts-label">Por</div>
     <div class="hosts">
       Dr. Felipe França<span class="amp">&amp;</span>Dr. João Fábio de Andrade
+    </div>
+
+    <div class="ornament"></div>
+
+    <!-- Video teaser do novo espaço -->
+    <div class="video-section">
+      <div class="video-label">Conheça o novo espaço</div>
+      <div class="video-frame">
+        <iframe
+          src="https://drive.google.com/file/d/1mf3Ji6MSEzubzIGT8IkuDaZqmJHo7QQT/preview"
+          allow="autoplay"
+          allowfullscreen></iframe>
+      </div>
     </div>
 
     <div class="ornament"></div>
