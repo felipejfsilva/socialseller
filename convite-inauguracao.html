@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Convite | Inauguração Instituto Be Healthy</title>
+
+<!-- Open Graph para preview no WhatsApp -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Convite Pessoal e Intransferível | Instituto Be Healthy">
+<meta property="og:description" content="Coquetel de Inauguração — 24 de abril, às 19h. Acesso exclusivo mediante apresentação deste convite.">
+<meta property="og:locale" content="pt_BR">
+<meta name="description" content="Convite Pessoal e Intransferível. Coquetel de Inauguração da nova sede do Instituto Be Healthy em Alfenas — 24 de abril, às 19h.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg-primary: #F5F0E8;
+    --bg-secondary: #EDE7DB;
+    --gold: #C5A46D;
+    --gold-light: #D4B98A;
+    --dark-wood: #5C3D2E;
+    --text-primary: #3A3028;
+    --text-secondary: #8C8279;
+    --text-tertiary: #B0A89E;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+
+  body {
+    background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 24px 16px 48px;
+  }
+
+  .invite {
+    width: 100%;
+    max-width: 560px;
+    background: var(--bg-primary);
+    padding: 64px 40px 56px;
+    position: relative;
+    box-shadow:
+      0 1px 0 rgba(197, 164, 109, 0.15),
+      0 8px 32px rgba(90, 61, 46, 0.06),
+      0 24px 64px rgba(90, 61, 46, 0.08);
+    border: 1px solid rgba(197, 164, 109, 0.2);
+    text-align: center;
+  }
+
+  /* Moldura interna dourada discreta */
+  .invite::before {
+    content: "";
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    border: 1px solid rgba(197, 164, 109, 0.25);
+    pointer-events: none;
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Wordmark topo */
+  .wordmark-top {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 24px;
+    color: var(--gold);
+    letter-spacing: 0.15em;
+    margin-bottom: 36px;
+  }
+  .wordmark-top .be {
+    font-weight: 300;
+    font-style: italic;
+  }
+  .wordmark-top .healthy {
+    font-weight: 500;
+  }
+
+  /* Separador dourado */
+  .line {
+    height: 1px;
+    background: var(--gold);
+    margin: 0 auto;
+  }
+  .line-lg  { width: 44%; opacity: 0.55; }
+  .line-md  { width: 28%; opacity: 0.45; }
+  .line-sm  { width: 20%; opacity: 0.35; }
+
+  /* Headline principal */
+  .headline {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: 28px;
+    line-height: 1.35;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin: 42px 0;
+  }
+
+  /* Anfitriões */
+  .hosts-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-top: 40px;
+  }
+  .hosts {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 26px;
+    line-height: 1.45;
+    letter-spacing: 0.04em;
+    color: var(--dark-wood);
+    margin-top: 12px;
+  }
+  .hosts .amp {
+    color: var(--gold);
+    font-style: italic;
+    font-weight: 400;
+    display: inline-block;
+    padding: 0 4px;
+  }
+
+  /* Corpo cerimonioso */
+  .body-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 19px;
+    line-height: 1.65;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
+    margin: 32px auto 0;
+    max-width: 400px;
+  }
+
+  /* Frase emocional */
+  .body-emotional {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-style: italic;
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--dark-wood);
+    margin: 24px auto 0;
+    max-width: 380px;
+  }
+
+  /* Ornamento losango */
+  .ornament {
+    width: 6px;
+    height: 6px;
+    background: var(--gold);
+    transform: rotate(45deg);
+    margin: 44px auto;
+    opacity: 0.75;
+  }
+
+  /* Nome do evento */
+  .event-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 400;
+    font-size: 11px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .event-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: 0.08em;
+    color: var(--text-primary);
+    margin-top: 10px;
+  }
+
+  /* Data */
+  .date {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin-top: 28px;
+  }
+  .time {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 15px;
+    letter-spacing: 0.16em;
+    color: var(--text-secondary);
+    margin-top: 6px;
+  }
+
+  /* Endereço */
+  .address {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 14px;
+    line-height: 1.65;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    margin-top: 24px;
+  }
+
+  /* Aviso de acesso */
+  .access-notice {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 400;
+    font-size: 11px;
+    line-height: 1.7;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin: 36px auto 0;
+    max-width: 340px;
+  }
+
+  /* CTA WhatsApp */
+  .rsvp-wrap {
+    margin-top: 40px;
+  }
+  .rsvp-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .rsvp-btn {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 400;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--bg-primary);
+    background: var(--dark-wood);
+    padding: 18px 36px;
+    text-decoration: none;
+    border: 1px solid var(--dark-wood);
+    transition: all 0.3s ease;
+    position: relative;
+  }
+  .rsvp-btn:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: var(--text-primary);
+  }
+
+  /* Footer */
+  .wordmark-bottom {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--gold);
+    letter-spacing: 0.14em;
+    margin-top: 48px;
+  }
+  .wordmark-bottom .be {
+    font-weight: 300;
+    font-style: italic;
+  }
+  .wordmark-bottom .healthy {
+    font-weight: 500;
+  }
+  .instituto-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 9px;
+    letter-spacing: 0.5em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+  }
+
+  /* Responsivo */
+  @media (max-width: 480px) {
+    body { padding: 12px 8px 32px; }
+    .invite { padding: 52px 24px 44px; }
+    .invite::before { top: 12px; left: 12px; right: 12px; bottom: 12px; }
+    .headline { font-size: 22px; letter-spacing: 0.22em; margin: 36px 0; }
+    .hosts { font-size: 22px; }
+    .body-text { font-size: 17px; }
+    .body-emotional { font-size: 15px; }
+    .event-name { font-size: 20px; }
+    .date { font-size: 19px; letter-spacing: 0.1em; }
+    .rsvp-btn { padding: 16px 28px; font-size: 11px; letter-spacing: 0.25em; }
+  }
+</style>
+</head>
+
+<body>
+
+<div class="invite">
+  <div class="content">
+
+    <!-- Wordmark topo -->
+    <div class="wordmark-top">
+      <span class="be">be</span> <span class="healthy">Healthy</span>
+    </div>
+
+    <div class="line line-lg"></div>
+
+    <!-- Headline principal -->
+    <h1 class="headline">
+      Convite Pessoal<br>
+      e Intransferível
+    </h1>
+
+    <div class="line line-md"></div>
+
+    <!-- Corpo cerimonioso -->
+    <p class="body-text">
+      O Instituto Be Healthy tem a honra de convidar para a inauguração da sua nova sede em Alfenas.
+    </p>
+
+    <p class="body-emotional">
+      Nosso próximo capítulo começa com quem sempre esteve ao nosso lado.
+    </p>
+
+    <!-- Anfitriões -->
+    <div class="hosts-label">Por</div>
+    <div class="hosts">
+      Dr. Felipe França <span class="amp">&amp;</span> João&nbsp;[Sobrenome]
+    </div>
+
+    <div class="ornament"></div>
+
+    <!-- Evento -->
+    <div class="event-label">Coquetel de Inauguração</div>
+    <div class="event-name">Nova Sede — Instituto Be Healthy</div>
+
+    <!-- Data -->
+    <div class="date">Quinta-feira, 24 de abril</div>
+    <div class="time">às 19 horas</div>
+
+    <div class="line line-sm" style="margin-top: 28px;"></div>
+
+    <!-- Endereço -->
+    <div class="address">
+      Rua Leon, 112 — Mont Serrat<br>
+      Alfenas, MG
+    </div>
+
+    <!-- Aviso de acesso -->
+    <div class="access-notice">
+      Acesso exclusivo mediante<br>apresentação deste convite.
+    </div>
+
+    <!-- RSVP -->
+    <div class="rsvp-wrap">
+      <div class="rsvp-label">Confirmação de presença</div>
+      <a class="rsvp-btn"
+         href="https://wa.me/55359999681188?text=Ol%C3%A1%2C%20gostaria%20de%20confirmar%20minha%20presen%C3%A7a%20na%20inaugura%C3%A7%C3%A3o%20do%20Instituto%20Be%20Healthy."
+         target="_blank"
+         rel="noopener">
+        Confirmar via WhatsApp
+      </a>
+    </div>
+
+    <div class="line line-md" style="margin-top: 44px;"></div>
+
+    <!-- Footer -->
+    <div class="wordmark-bottom">
+      <span class="be">be</span> <span class="healthy">Healthy</span>
+    </div>
+    <div class="instituto-label">Instituto</div>
+
+  </div>
+</div>
+
+</body>
+</html>
