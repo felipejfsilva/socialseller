@@ -85,54 +85,12 @@
 
   /* Wordmark topo */
   .wordmark-top {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 400;
-    font-size: 28px;
-    color: var(--gold);
-    letter-spacing: 0.04em;
     margin-bottom: 36px;
     line-height: 1;
   }
-  .wordmark-top .be {
-    font-weight: 300;
-    font-style: italic;
-    font-size: 0.5em;
-    display: block;
-    letter-spacing: 0.1em;
-    margin-bottom: -4px;
-  }
-  .wordmark-top .h-mark {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 500;
-    font-style: italic;
-    font-size: 2.2em;
-    letter-spacing: 0;
-    line-height: 0.9;
-    display: block;
-    position: relative;
-  }
-  .wordmark-top .h-mark::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-15deg);
-    width: 46px;
-    height: 1px;
-    background: var(--gold);
-    opacity: 0.8;
-  }
-  .wordmark-top .healthy {
-    font-weight: 300;
-    font-style: italic;
-    font-size: 0.55em;
-    display: block;
-    letter-spacing: 0.08em;
-    margin-top: -2px;
-  }
-  /* Caso queira usar a logo oficial em PNG/SVG, descomente abaixo e coloque o arquivo em /img/logo.png */
   .wordmark-top img {
-    max-width: 120px;
+    max-width: 140px;
+    width: 100%;
     height: auto;
     display: block;
     margin: 0 auto;
@@ -383,19 +341,15 @@
 
   /* Footer */
   .wordmark-bottom {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 400;
-    font-size: 22px;
-    color: var(--gold);
-    letter-spacing: 0.14em;
     margin-top: 48px;
   }
-  .wordmark-bottom .be {
-    font-weight: 300;
-    font-style: italic;
-  }
-  .wordmark-bottom .healthy {
-    font-weight: 500;
+  .wordmark-bottom img {
+    max-width: 90px;
+    width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    opacity: 0.85;
   }
   .instituto-label {
     font-family: 'Montserrat', sans-serif;
@@ -420,6 +374,9 @@
     .event-name { font-size: 20px; }
     .date { font-size: 19px; letter-spacing: 0.1em; }
     .rsvp-btn { padding: 16px 28px; font-size: 11px; letter-spacing: 0.25em; }
+    .wordmark-top img { max-width: 110px; }
+    .wordmark-bottom img { max-width: 70px; }
+    .video-frame { border-width: 1px; }
   }
 </style>
 </head>
@@ -429,11 +386,9 @@
 <div class="invite">
   <div class="content">
 
-    <!-- Wordmark topo (substitua pelo arquivo oficial: <img src="img/logo.png" alt="be Healthy">) -->
+    <!-- Logo oficial be Healthy -->
     <div class="wordmark-top">
-      <span class="be">be</span>
-      <span class="h-mark">H</span>
-      <span class="healthy">healthy</span>
+      <img src="img/logo.jpeg" alt="be Healthy">
     </div>
 
     <div class="line line-lg"></div>
@@ -526,7 +481,7 @@
 
     <!-- Footer -->
     <div class="wordmark-bottom">
-      <span class="be">be</span> <span class="healthy">Healthy</span>
+      <img src="img/logo.jpeg" alt="be Healthy">
     </div>
     <div class="instituto-label">Instituto</div>
 
